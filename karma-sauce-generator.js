@@ -1,19 +1,16 @@
-var browserslist = require('browserslist');
-var request = require('sync-request');
+const browserslist = require('browserslist');
+const request = require('sync-request');
+const res = request('GET', 'https://saucelabs.com/rest/v1/info/browsers/webdriver');
 
-var res = request('GET', 'https://saucelabs.com/rest/v1/info/browsers/webdriver');
-
-
-function lookup(requestedBrowsers, cb) {
-  var result = {};
-  var sauce = JSON.parse(res.getBody().toString())
-    //console.log(sauce);
+const lookup = (requestedBrowsers, cb) => {
+  const sauce = JSON.parse(res.getBody().toString())
+  let result = {};
 
   browserslist(requestedBrowsers)
     .map((browser) => {
-      var data = browser.split(' ');
-      var name = data[0];
-      var ver = data[1];
+      const data = browser.split(' ');
+      const name = data[0];
+      const ver = data[1];
 
       switch (name) {
         case 'edge':
