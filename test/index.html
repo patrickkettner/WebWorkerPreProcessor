@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head>
+  <title>Karma DEBUG RUNNER</title>
+<link rel="stylesheet" href="../node_modules/mocha/mocha.css"/>
+</head>
+<body>
+  <div id=mocha></div>
+<script type="text/javascript" src="../node_modules/mocha/mocha.js" crossorigin="anonymous"></script>
+<script>mocha.setup('bdd').timeout(20000);</script>
+<script type="text/javascript" src="../node_modules/jquery/dist/jquery.min.js" crossorigin="anonymous"></script>
+<script type="text/javascript" src="../node_modules/expect.js/index.js" crossorigin="anonymous"></script>
+<script type="text/javascript" src="./currentTag.js" crossorigin="anonymous"></script>
+<script type="text/javascript" src="./jade-suite.js" crossorigin="anonymous"></script>
+<script>mocha.run()</script>
+</body>
+</html>
+

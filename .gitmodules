@@ -1,0 +1,12 @@
+[submodule "lib/stylus"]
+	path = lib/stylus
+	url = https://github.com/stylus/stylus
+[submodule "lib/less"]
+	path = lib/less
+	url = https://github.com/less/less.js
+[submodule "lib/autoprefixer"]
+	path = lib/autoprefixer
+	url = https://github.com/postcss/autoprefixer
+[submodule "lib/pug"]
+	path = lib/pug
+	url = https://github.com/pugjs/pug
