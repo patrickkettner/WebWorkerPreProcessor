@@ -9,6 +9,8 @@ module.exports = function(config) {
     frameworks: ['mocha'],
     concurrency: 4,
     customLaunchers: customLaunchers,
+    browserDisconnectTolerance: 3,
+    browserDisconnectTimeout: 60 * 1000,
     browserNoActivityTimeout: 45 * 1000,
     port: 9999,
     singleRun: true,
