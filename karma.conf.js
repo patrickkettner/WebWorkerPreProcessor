@@ -6,6 +6,9 @@ module.exports = function(config) {
   ]);
 
   config.set({
+    sauceLabs: {
+      tunnelIdentifier: 'WebWorkerPreProcessor-Tunnel'
+    },
     frameworks: ['mocha'],
     concurrency: 4,
     customLaunchers: customLaunchers,
