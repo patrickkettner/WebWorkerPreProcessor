@@ -9,8 +9,8 @@ const lookup = (requestedBrowsers, cb) => {
   browserslist(requestedBrowsers)
     .map((browser) => {
       const data = browser.split(' ');
-      const name = data[0];
-      const ver = data[1];
+      let name = data[0];
+      let ver = data[1];
 
       switch (name) {
         case 'edge':
