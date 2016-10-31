@@ -1,4 +1,4 @@
-var webpack = require("webpack");
+var spawn = require('child_process').spawn;
 
 module.exports = function(grunt) {
   'use strict';
@@ -27,6 +27,12 @@ module.exports = function(grunt) {
     }
   }
 
+  function isRubyLib(lib) {
+    return [
+      'slim'
+    ].indexOf(lib) > -1
+  }
+
   function filterGitLog(logs) {
     // by default, the prop is gitlog.TARGET.result
     // hacky, but only way to get target from existing data
@@ -45,7 +51,6 @@ module.exports = function(grunt) {
     })
     .filter(tag => !!tag)
     .forEach(tag => {
-      console.log(tag);
       grunt.task.run([`build:${target}:${tag}`])
     })
   }
@@ -54,18 +59,32 @@ module.exports = function(grunt) {
   require('load-grunt-tasks')(grunt);
 
   grunt.initConfig({
+    env: {
+      slim: {
+        'OPAL_LOAD_PATH': () => `${__dirname}/lib/slim/lib/:${
+          grunt.file.expand([
+            './ruby/*/gems/opal*/*',
+            './ruby/*/gems/*/lib/',
+            './ruby/*/bundler/gems/*/',
+            './ruby/*/bundler/gems/*/lib/'
+          ]).join(':')}`
+      }
+    },
     clean: {
       autoprefixer: ['./dist/autoprefixer-*', './lib/autoprefixer/node_modules', './test/autoprefixer-suite.js'],
       stylus: ['./dist/stylus-*', './lib/stylus/node_modules'],
       less: ['./dist/less-*', './lib/less/node_modules'],
       jade: ['./dist/jade-*', './lib/pug/node_modules'],
-      pug: ['./dist/pug-*', './lib/pug/node_modules']
+      pug: ['./dist/pug-*', './lib/pug/node_modules'],
+      slim: ['./dist/slim-*'],
+      RUBY: ['./Gemfile.lock', './ruby']
     },
     karma: {
       options: {
         files: [
           {pattern: 'dist/*.js', included: false},
           {pattern: 'lib/**/*', included: false},
+          './lib/js/semver.min.js',
           './node_modules/jquery/dist/jquery.min.js',
           './node_modules/expect.js/index.js',
           './test/currentTag.js',
@@ -73,7 +92,8 @@ module.exports = function(grunt) {
         ]
       },
       full: {
-        configFile: 'karma.conf.js'
+        configFile: 'karma.conf.js',
+        fullRun: true
       },
       fast: {
         configFile: 'karma.conf.js',
@@ -111,6 +131,11 @@ module.exports = function(grunt) {
           cwd: './lib/autoprefixer'
         },
       },
+      slim: {
+        options: {
+          cwd: './lib/slim'
+        },
+      },
       less: {
         options: {
           cwd: './lib/less',
@@ -123,6 +148,7 @@ module.exports = function(grunt) {
       stylus: { options: { cwd: './lib/stylus' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug', branch: 'master'} },
+      slim: { options: { cwd: './lib/slim' } },
       pug: { options: { cwd: './lib/pug' } }
     },
     gitcheckout: {
@@ -131,19 +157,24 @@ module.exports = function(grunt) {
       stylus: { options: { cwd: './lib/stylus' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug' } },
+      slim: { options: { cwd: './lib/slim' } },
       pug: { options: { cwd: './lib/pug' } }
     },
-    gitclean: {
-      options: {
-        dry: true,
-        nonstandard: true,
-        directories: true
+    gitapply: {
+      slim: {
+        options: {
+          cwd: './lib/slim',
+          patchFiles: '../../diffs/<%= grunt.config.get("lib") %>/<%= grunt.config.get("currentTag") %>.patch'
+        }
       },
-      autoprefixer: { cwd: './lib/autoprefixer' },
-      stylus: { cwd: './lib/stylus' },
-      less: { cwd: './lib/less' },
-      jade: { cwd: './lib/pug' },
-      pug: { cwd: './lib/pug' }
+    },
+    gitreset: {
+      options: { mode: 'hard' },
+      stylus: { options: { cwd: './lib/stylus' } },
+      less: { options: { cwd: './lib/less' } },
+      jade: { options: { cwd: './lib/pug' } },
+      slim: { options: { cwd: './lib/slim' } },
+      pug: { options: { cwd: './lib/pug' } }
     },
 
     'npm-command': {
@@ -164,27 +195,19 @@ module.exports = function(grunt) {
     },
 
     update: {
-      stylus: {
-        defaultBranch: 'dev'
-      },
-      less: {
-        defaultBranch: '3.x'
-      },
-      jade: {
-        defaultBranch: '1.11.0'
-      },
-      pug: {
-        defaultBranch: 'master'
-      },
-      autoprefixer: {
-        defaultBranch: 'master'
-      }
+      stylus: { defaultBranch: 'dev' },
+      less: { defaultBranch: '3.x' },
+      jade: { defaultBranch: '1.11.0' },
+      pug: { defaultBranch: 'master' },
+      autoprefixer: { defaultBranch: 'master' },
+      slim: {defaultBranch: 'master'}
     },
     webpack: {
       stylus: {},
       less: {},
       jade: {},
-      pug: {}
+      slim: {},
+      pug: {},
     },
     testFile: {
       jade: [
@@ -214,6 +237,7 @@ module.exports = function(grunt) {
         '!./test/**/javascript-error.less',
         '!./test/less/**/*Processor*/*.less'
       ],
+      slim: [],
       stylus: [ './test/cases/**/*.styl', './test/converter/**/*.styl' ],
     }
   });
@@ -223,17 +247,34 @@ module.exports = function(grunt) {
 
     var tag = grunt.config.get('currentTag');
     var proj = this.target;
-    var webpackConfig = require(`./lib/${proj}.webpack.config.js`)
 
-    webpackConfig.output.filename = webpackConfig.output.filename.replace(
-        new RegExp(`${proj}(-.*)?\.min\.js`),
-        `${proj}-${tag}.min.js`
-      );
+    // we do this via spawn instead of the webpack node API because opal-webpack
+    // checks the enviroment variable for OPAL_LOAD_PATH only at load time. Since
+    // this changes for us over time, we need to be in a clean state. deleting
+    // the loader via require.cache caused other errors, so this is the cleanest
+    // way to accomplish it
+    var wP = spawn('./node_modules/.bin/webpack', [
+      '--output-path',
+      `${__dirname}/dist/`,
+      '--output-filename',
+      `${proj}-${tag}.min.js`,
+      '--config',
+      `${__dirname}/lib/${proj}.webpack.config.js`
+      ])
 
-    webpack(webpackConfig, webpackCallback(done));
+      wP.stdout.on('data', (data) => {
+        grunt.log.write(data)
+      });
+
+      wP.stderr.on('data', (data) => {
+        grunt.log.error(data)
+      });
+
+      wP.on('close', done);
   });
 
   grunt.registerMultiTask('testFile', function() {
+    var webpack = require('webpack');
     var done = this.async();
     var lib = this.target;
 
@@ -248,13 +289,18 @@ module.exports = function(grunt) {
     }
 
     if (lib === 'autoprefixer') {
-      webpack(require('./test/autoprefixer-test.webpack.config'), webpackCallback(done));
+      webpack('./test/autoprefixer-test.webpack.config', webpackCallback(() => {
+        clearRequire.all()
+        done();
+      }));
     } else {
       var files = rewrite(grunt.file.expand({ cwd: `./lib/${libPath}` }, this.data))
+      var tag = grunt.config.get('currentTag')
 
       grunt.file.write('./test/currentTag.js', `
         window.__testFiles=${JSON.stringify(files)};
-        window.__workerPath="/base/dist/${lib}-${grunt.config.get('currentTag')}.min.js"
+        window.__libVersion="${tag}";
+        window.__workerPath="/base/dist/${lib}-${tag}.min.js"
       `)
       done();
     }
@@ -265,12 +311,41 @@ module.exports = function(grunt) {
     var tag = this.data.defaultBranch;
 
     grunt.config.set('currentTag', this.data.defaultBranch);
+    grunt.task.run([`gitreset:${this.target}`]);
     grunt.task.run([`gitcheckout:${this.target}`]);
 
     if (tag) {
       grunt.task.run([`gitpull:${this.target}`]);
     }
   })
+
+  // update dependencies, and apply changes to the library to ready it for processing
+  grunt.registerTask('prepareLib', function(lib, tag) {
+
+    if (isRubyLib(lib)) {
+      grunt.task.run(['gitapply', 'clean:RUBY', 'bundlerInstall', `env:${lib}`])
+    } else {
+      grunt.task.run(['npm-command:update', 'npm-command:prune']);
+    }
+  })
+
+
+  grunt.registerTask('bundlerInstall', function() {
+    var done = this.async()
+
+    grunt.util.spawn({
+      cmd: 'bundler',
+      args: ['install']
+    }, function(err, result) {
+      if (err) {
+        grunt.log.error(result)
+      }
+
+      grunt.log.write(result)
+      done()
+    })
+  })
+
 
   // delete the old files, update the projects, then get new tags (via log) and
   // then trigger then build for each tag, then update again to switch back to
@@ -292,7 +367,7 @@ module.exports = function(grunt) {
 
       grunt.config.set('libPath', libPath);
 
-      grunt.task.run([`gitcheckout:${lib}:${tag}`, 'npm-command:update', 'npm-command:prune', grunt.config.get('FULL_RUN') ? `generateAndTestTag:${lib}:${tag}` : `generateTag:${lib}:${tag}`]);
+      grunt.task.run([`gitreset:${lib}`, `gitcheckout:${lib}:${tag}`, `prepareLib:${lib}:${tag}`, grunt.config.get('FULL_RUN') ? `generateAndTestTag:${lib}:${tag}` : `generateTag:${lib}:${tag}`]);
   })
 
   // quickly generate files, by just testing the results in a local build of chrome

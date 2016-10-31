@@ -1,0 +1,171 @@
+From e107e6fc09528e1404692ec7bba45928c67c75a3 Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Sun, 13 Nov 2016 16:51:31 -0800
+Subject: [PATCH] .
+
+---
+ Gemfile                     |  4 +++-
+ lib/slim.rb                 |  5 +----
+ lib/slim/embedded_engine.rb |  4 ++--
+ lib/slim/helpers.rb         |  2 +-
+ lib/slim/parser.rb          | 24 ++++++++++++++++--------
+ slim.gemspec                | 11 +----------
+ 6 files changed, 24 insertions(+), 26 deletions(-)
+
+diff --git a/Gemfile b/Gemfile
+index f6a560f..36f190c 100644
+--- a/Gemfile
++++ b/Gemfile
+@@ -1,3 +1,5 @@
+ source :rubygems
+ 
+-gemspec
+\ No newline at end of file
++gemspec
++
++gem 'OLD_RUBY_CGI_ESCAPE', :gist => '48cb6c904f776d169d8d7dcaa59832ba'
+diff --git a/lib/slim.rb b/lib/slim.rb
+index 4bf9b12..5179893 100644
+--- a/lib/slim.rb
++++ b/lib/slim.rb
+@@ -13,10 +13,7 @@ require 'slim/engine'
+ require 'slim/template'
+ require 'slim/version'
+ 
+-begin
+-  require 'escape_utils'
+-rescue LoadError
+-end
++require 'OLD_RUBY_CGI_ESCAPE'
+ 
+ module Slim
+   def self.version
+diff --git a/lib/slim/embedded_engine.rb b/lib/slim/embedded_engine.rb
+index 790f754..a5c1fd7 100644
+--- a/lib/slim/embedded_engine.rb
++++ b/lib/slim/embedded_engine.rb
+@@ -21,9 +21,9 @@ module Slim
+     def collect_text(body)
+       body.inject('') do |text, exp|
+         if exp[0] == :slim && exp[1] == :text
+-          text << exp[2]
++          text += exp[2]
+         elsif exp[0] == :newline
+-          text << "\n"
++          text += "\n"
+         end
+         text
+       end
+diff --git a/lib/slim/helpers.rb b/lib/slim/helpers.rb
+index 035938c..940626d 100644
+--- a/lib/slim/helpers.rb
++++ b/lib/slim/helpers.rb
+@@ -72,7 +72,7 @@ module Slim
+       # @return [String] The escaped string
+       # @api public
+       def escape_html(html)
+-        html.to_s.gsub(/&/n, '&amp;').gsub(/\"/n, '&quot;').gsub(/>/n, '&gt;').gsub(/</n, '&lt;').gsub(/\//, '&#47;')
++	html.to_s.gsub(/&/, '&amp;').gsub(/\"/, '&quot;').gsub(/>/, '&gt;').gsub(/</, '&lt;').gsub(/\//, '&#47;')
+       end
+     end
+ 
+diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
+index 9d4b7c9..469f386 100644
+--- a/lib/slim/parser.rb
++++ b/lib/slim/parser.rb
+@@ -73,7 +73,7 @@ module Slim
+         lineno += 1
+ 
+         # Remove the newline at the ned
+-        line.chop!
++	line = line.chop
+ 
+         # Handle broken lines
+         if broken_line
+@@ -97,7 +97,7 @@ module Slim
+         indent = line[/^[ \t]*/].gsub("\t", @tab).size
+ 
+         # Remove the indentation
+-        line.lstrip!
++	line = line.lstrip
+ 
+         # Handle blocks with multiple lines
+         if block_indent
+@@ -172,7 +172,7 @@ module Slim
+           block_indent = indent
+ 
+           in_comment = line[0] == ?/
+-          line.slice!(0)
++          line = line.slice(1..-1)
+           if !in_comment && !line.strip.empty?
+             block << [:slim, :text, line.sub(/^( )/, '')]
+             text_indent = block_indent + ($1 ? 2 : 1)
+@@ -274,7 +274,8 @@ module Slim
+       if line =~ DELIMITER_REGEX
+         delimiter = DELIMITERS[$1]
+         # Replace the delimiter with a space so we can continue parsing as normal.
+-        line[0] = ?\s
++        newFirstChar = ?\s
++        line = newFirstChar + line.slice(1..-1)
+       end
+ 
+       # Parse attributes
+@@ -295,7 +296,7 @@ module Slim
+       # Find ending delimiter
+       if !delimiter.empty?
+         if line[0, 1] == delimiter
+-          line.slice!(0)
++          line = line.slice(1..-1)
+         else
+           syntax_error! "Expected closing attribute delimiter #{delimiter}", orig_line, lineno, orig_line.size - line.size
+         end
+@@ -338,15 +339,22 @@ module Slim
+         elsif line =~ DELIMITER_REGEX
+           # Delimiter found, push it on the stack
+           stack << DELIMITERS[$1]
+-          value << line.slice!(0)
++
++          firstChar = line.slice(0)
++          line = line.slice(1..-1)
++          value += firstChar
+         elsif line =~ CLOSE_DELIMITER_REGEX
+           # Closing delimiter found, pop it from the stack if everything is ok
+           syntax_error! "Unexpected closing #{$1}", orig_line, lineno if stack.empty?
+           syntax_error! "Expected closing #{stack.last}", orig_line, lineno if stack.last != $1
+-          value << line.slice!(0)
++          firstChar = line.slice(0)
++          line = line.slice(1..-1)
++          value += firstChar
+           stack.pop
+         else
+-          value << line.slice!(0)
++          firstChar = line.slice(0)
++          line = line.slice(1..-1)
++          value += firstChar
+         end
+       end
+ 
+diff --git a/slim.gemspec b/slim.gemspec
+index 430dcfc..4211095 100644
+--- a/slim.gemspec
++++ b/slim.gemspec
+@@ -20,15 +20,6 @@ Gem::Specification.new do |s|
+   s.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
+   s.require_paths = ["lib"]
+ 
+-  s.add_runtime_dependency(%q<escape_utils>, [">= 0.1.9"]) unless RUBY_PLATFORM == "java"
+-  s.add_runtime_dependency(%q<temple>, ["~> 0.1.3"])
++  s.add_runtime_dependency(%q<temple>, ["= 0.1.3"])
+   s.add_runtime_dependency(%q<tilt>, ["~> 1.1"])
+-  s.add_development_dependency(%q<rake>, [">= 0.8.7"])
+-  s.add_development_dependency(%q<haml>, [">= 0"])
+-  s.add_development_dependency(%q<erubis>, [">= 0"])
+-  s.add_development_dependency(%q<minitest>, [">= 0"])
+-  s.add_development_dependency(%q<rcov>, [">= 0"])
+-  s.add_development_dependency(%q<rdiscount>, [">= 0"])
+-  s.add_development_dependency(%q<liquid>, [">= 0"])
+-  s.add_development_dependency(%q<yard>, [">= 0"])
+ end
+-- 
+2.10.0
+

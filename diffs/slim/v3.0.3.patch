@@ -1,0 +1,337 @@
+From 4b9f192ae8723864eabe8b9cf044d3da52a39682 Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Wed, 9 Nov 2016 18:58:54 -0800
+Subject: [PATCH] .
+
+---
+ lib/slim/engine.rb        |  1 -
+ lib/slim/interpolation.rb |  8 ++---
+ lib/slim/parser.rb        | 91 +++++++++++++++++++++++++----------------------
+ 3 files changed, 52 insertions(+), 48 deletions(-)
+
+diff --git a/lib/slim/engine.rb b/lib/slim/engine.rb
+index 0f6867e..f26d2ed 100644
+--- a/lib/slim/engine.rb
++++ b/lib/slim/engine.rb
+@@ -13,7 +13,6 @@ module Slim
+                    generator: Temple::Generators::ArrayBuffer,
+                    default_tag: 'div'
+ 
+-    filter :Encoding
+     filter :RemoveBOM
+     use Slim::Parser
+     use Slim::Embedded
+diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
+index b2a6b37..8d503a5 100644
+--- a/lib/slim/interpolation.rb
++++ b/lib/slim/interpolation.rb
+@@ -14,16 +14,16 @@ module Slim
+       block = [:multi]
+       begin
+         case string
+-        when /\A\\#\{/
++	when /^\\#\{/
+           # Escaped interpolation
+           block << [:static, '#{']
+           string = $'
+-        when /\A#\{((?>[^{}]|(\{(?>[^{}]|\g<1>)*\}))*)\}/
++	when /^#\{(([^{}]|(\{([^{}]|\1)*\}))*)\}/
+           # Interpolation
+           string, code = $', $1
+-          escape = code !~ /\A\{.*\}\Z/
++	  escape = code !~ /^\{.*\}$/
+           block << [:slim, :output, escape, escape ? code : code[1..-2], [:multi]]
+-        when /\A([#\\]?[^#\\]*([#\\][^\\#\{][^#\\]*)*)/
++	when /^([#\\]?[^#\\]*([#\\][^\\#\{][^#\\]*)*)/
+           # Static text
+           block << [:static, $&]
+           string = $'
+diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
+index 59dbba3..db222c6 100644
+--- a/lib/slim/parser.rb
++++ b/lib/slim/parser.rb
+@@ -61,19 +61,20 @@ module Slim
+         @tag_shortcut[k] = v[:tag] || options[:default_tag]
+         if v.include?(:attr)
+           @attr_shortcut[k] = [v[:attr]].flatten
+-          raise ArgumentError, 'You can only use special characters for attribute shortcuts' if k =~ /(\p{Word}|-)/
++	  raise ArgumentError, 'You can only use special characters for attribute shortcuts' if k =~ /(\w|-)/
+         end
+       end
+-      keys = Regexp.union @attr_shortcut.keys.sort_by {|k| -k.size }
+-      @attr_shortcut_re = /\A(#{keys}+)((?:\p{Word}|-)*)/
+-      keys = Regexp.union @tag_shortcut.keys.sort_by {|k| -k.size }
+-      @tag_re = /\A(?:#{keys}|\*(?=[^\s]+)|(\p{Word}(?:\p{Word}|:|-)*\p{Word}|\p{Word}+))/
++      keys = @attr_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
++      @attr_shortcut_re = /^(#{keys}+)((?:\w|-)*)/
++      keys = @tag_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
++      @tag_re = /^(?:#{keys}|\*(?=[^\s]+)|(\w(?:\w|:|-)*\w|\w+))/
+       keys = Regexp.escape @code_attr_delims.keys.join
+-      @code_attr_delims_re = /\A[#{keys}]/
++      @code_attr_delims_re = /^[#{keys}]/
+       keys = Regexp.escape @attr_list_delims.keys.join
+-      @attr_list_delims_re = /\A\s*([#{keys}])/
+-      @embedded_re = /\A(#{Regexp.union(Embedded.engines.keys.map(&:to_s))}):(\s*)/
+-      @attr_name = "\\A\\s*([^\0\"'><\/=\s#{(@attr_list_delims.flatten + @code_attr_delims.flatten).map {|x| Regexp.escape(x) }.join}]+)"
++      @attr_list_delims_re = /^\s*([#{keys}])/
++      keys = Embedded.engines.keys.map(&:to_s).map {|v| Regexp.escape v}.join('|')
++      @embedded_re = /^(#{keys}):(\s*)/
++      @attr_name = "\^\\s*([^\0\"'><\/=\s#{(@attr_list_delims.flatten + @code_attr_delims.flatten).map {|x| Regexp.escape(x) }.join}]+)"
+       @quoted_attr_re = /#{@attr_name}\s*=(=?)\s*("|')/
+       @code_attr_re = /#{@attr_name}\s*=(=?)\s*/
+     end
+@@ -134,11 +135,11 @@ module Slim
+     def get_indent(line)
+       # Figure out the indentation. Kinda ugly/slow way to support tabs,
+       # but remember that this is only done at parsing time.
+-      line[/\A[ \t]*/].gsub(@tab_re, @tab).size
++      line[/^[ \t]*/].gsub(@tab_re, @tab).size
+     end
+ 
+     def parse_line
+-      if @line =~ /\A\s*\Z/
++      if @line =~ /^\s*$/
+         @stacks.last << [:newline]
+         return
+       end
+@@ -149,7 +150,7 @@ module Slim
+       @indents << indent if @indents.empty?
+ 
+       # Remove the indentation
+-      @line.lstrip!
++      @line = @line.lstrip
+ 
+       # If there's more stacks than indents, it means that the previous
+       # line is expecting this line to be indented.
+@@ -188,35 +189,35 @@ module Slim
+ 
+     def parse_line_indicators
+       case @line
+-      when /\A\/!( ?)/
++      when /^\/!( ?)/
+         # HTML comment
+         @stacks.last << [:html, :comment, [:slim, :text, :verbatim, parse_text_block($', @indents.last + $1.size + 2)]]
+-      when /\A\/\[\s*(.*?)\s*\]\s*\Z/
++      when /^\/\[\s*(.*?)\s*\]\s*$/
+         # HTML conditional comment
+         block = [:multi]
+         @stacks.last << [:html, :condcomment, $1, block]
+         @stacks << block
+-      when /\A\//
++      when /^\//
+         # Slim comment
+         parse_comment_block
+-      when /\A([\|'])( ?)/
++      when /^([\|'])( ?)/
+         # Found verbatim text block.
+         trailing_ws = $1 == "'"
+         @stacks.last << [:slim, :text, :verbatim, parse_text_block($', @indents.last + $2.size + 1)]
+         @stacks.last << [:static, ' '] if trailing_ws
+-      when /\A</
++      when /^</
+         # Inline html
+         block = [:multi]
+         @stacks.last << [:multi, [:slim, :interpolate, @line], block]
+         @stacks << block
+-      when /\A-/
++      when /^-/
+         # Found a code block.
+         # We expect the line to be broken or the next line to be indented.
+-        @line.slice!(0)
++      @line = @line.slice(1..-1)
+         block = [:multi]
+         @stacks.last << [:slim, :control, parse_broken_line, block]
+         @stacks << block
+-      when /\A=(=?)(['<>]*)/
++      when /^=(=?)(['<>]*)/
+         # Found an output block.
+         # We expect the line to be broken or the next line to be indented.
+         @line = $'
+@@ -233,7 +234,7 @@ module Slim
+       when @embedded_re
+         # Embedded template detected. It is treated as block.
+         @stacks.last << [:slim, :embedded, $1, parse_text_block($', @orig_line.size - $'.size + $2.size)]
+-      when /\Adoctype\b/
++      when /^doctype\b/
+         # Found doctype declaration
+         @stacks.last << [:html, :doctype, $'.strip]
+       when @tag_re
+@@ -251,7 +252,7 @@ module Slim
+     end
+ 
+     def parse_comment_block
+-      while !@lines.empty? && (@lines.first =~ /\A\s*\Z/ || get_indent(@lines.first) > @indents.last)
++      while !@lines.empty? && (@lines.first =~ /^\s*$/ || get_indent(@lines.first) > @indents.last)
+         next_line
+         @stacks.last << [:newline]
+       end
+@@ -267,7 +268,7 @@ module Slim
+ 
+       empty_lines = 0
+       until @lines.empty?
+-        if @lines.first =~ /\A\s*\Z/
++	if @lines.first =~ /^\s*$/
+           next_line
+           result << [:newline]
+           empty_lines += 1 if text_indent
+@@ -281,7 +282,7 @@ module Slim
+           end
+ 
+           next_line
+-          @line.lstrip!
++	  @line = @line.lstrip
+ 
+           # The text block lines must be at least indented
+           # as deep as the first line.
+@@ -302,7 +303,7 @@ module Slim
+ 
+     def parse_broken_line
+       broken_line = @line.strip
+-      while broken_line =~ /[,\\]\Z/
++      while broken_line =~ /[,\\]$/
+         expect_next_line
+         broken_line << "\n" << @line
+       end
+@@ -311,7 +312,7 @@ module Slim
+ 
+     def parse_tag(tag)
+       if @tag_shortcut[tag]
+-        @line.slice!(0, tag.size) unless @attr_shortcut[tag]
++	@line = @line.slice(tag.size..-1) unless @attr_shortcut[tag]
+         tag = @tag_shortcut[tag]
+       end
+ 
+@@ -325,7 +326,7 @@ module Slim
+         @line = $'
+       end
+ 
+-      @line =~ /\A[<>']*/
++      @line =~ /^[<>']*/
+       @line = $'
+       trailing_ws = $&.include?('>')
+       if $&.include?('\'')
+@@ -344,7 +345,7 @@ module Slim
+       @stacks.last << [:static, ' '] if trailing_ws
+ 
+       case @line
+-      when /\A\s*:\s*/
++      when /^\s*:\s*/
+         # Block expansion
+         @line = $'
+         if @line =~ @embedded_re
+@@ -359,7 +360,7 @@ module Slim
+           parse_tag($&)
+           @stacks.delete_at(i)
+         end
+-      when /\A\s*=(=?)(['<>]*)/
++      when /^\s*=(=?)(['<>]*)/
+         # Handle output code
+         @line = $'
+         trailing_ws2 = $2.include?('>')
+@@ -372,16 +373,16 @@ module Slim
+         tag << [:slim, :output, $1 != '=', parse_broken_line, block]
+         @stacks.last << [:static, ' '] if !trailing_ws && trailing_ws2
+         @stacks << block
+-      when /\A\s*\/\s*/
++      when /^\s*\/\s*/
+         # Closed tag. Do nothing
+         @line = $'
+         syntax_error!('Unexpected text after closed tag') unless @line.empty?
+-      when /\A\s*\Z/
++      when /^\s*$/
+         # Empty content
+         content = [:multi]
+         tag << content
+         @stacks << content
+-      when /\A ?/
++      when /^ ?/
+         # Text content
+         tag << [:slim, :text, :inline, parse_text_block($', @orig_line.size - $'.size)]
+       end
+@@ -396,13 +397,13 @@ module Slim
+       end
+ 
+       if delimiter
+-        boolean_attr_re = /#{@attr_name}(?=(\s|#{Regexp.escape delimiter}|\Z))/
+-        end_re = /\A\s*#{Regexp.escape delimiter}/
++	boolean_attr_re = /#{@attr_name}(?=(\s|#{Regexp.escape delimiter}|$))/
++	end_re = /^\s*#{Regexp.escape delimiter}/
+       end
+ 
+       while true
+         case @line
+-        when /\A\s*\*(?=[^\s]+)/
++	when /^\s*\*(?=[^\s]+)/
+           # Splat attribute
+           @line = $'
+           attributes << [:slim, :splat, parse_ruby_code(delimiter)]
+@@ -433,7 +434,7 @@ module Slim
+             break
+           else
+             # Found something where an attribute should be
+-            @line.lstrip!
++	    @line = @line.lstrip
+             syntax_error!('Expected attribute') unless @line.empty?
+ 
+             # Attributes span multiple lines
+@@ -449,10 +450,10 @@ module Slim
+       code, count, delimiter, close_delimiter = '', 0, nil, nil
+ 
+       # Attribute ends with space or attribute delimiter
+-      end_re = /\A[\s#{Regexp.escape outer_delimiter.to_s}]/
++      end_re = /^[\s#{Regexp.escape outer_delimiter.to_s}]/
+ 
+       until @line.empty? || (count == 0 && @line =~ end_re)
+-        if @line =~ /\A[,\\]\Z/
++	if @line =~ /^[,\\]$/
+           code << @line << "\n"
+           expect_next_line
+         else
+@@ -466,7 +467,9 @@ module Slim
+             count = 1
+             delimiter, close_delimiter = $&, @code_attr_delims[$&]
+           end
+-          code << @line.slice!(0)
++	  firstChar = @line.slice(0)
++	  @line = @line.slice(1..-1)
++	  code += firstChar
+         end
+       end
+       syntax_error!("Expected closing delimiter #{close_delimiter}") if count != 0
+@@ -477,7 +480,7 @@ module Slim
+       value, count = '', 0
+ 
+       until count == 0 && @line[0] == quote[0]
+-        if @line =~ /\A(\\)?\Z/
++	if @line =~ /^(\\)?$/
+           value << ($1 ? ' ' : "\n")
+           expect_next_line
+         else
+@@ -486,11 +489,13 @@ module Slim
+           elsif @line[0] == ?}
+             count -= 1
+           end
+-          value << @line.slice!(0)
++	  firstChar = @line.slice(0)
++	  @line = @line.slice(1..-1)
++	  value += firstChar
+         end
+       end
+ 
+-      @line.slice!(0)
++      @line = @line.slice(1..-1)
+       value
+     end
+ 
+@@ -517,7 +522,7 @@ module Slim
+ 
+     def expect_next_line
+       next_line || syntax_error!('Unexpected end of file')
+-      @line.strip!
++      @line = @line.strip
+     end
+   end
+ end
+-- 
+2.10.0
+

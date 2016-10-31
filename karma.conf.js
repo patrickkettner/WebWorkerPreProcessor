@@ -1,9 +1,14 @@
 module.exports = function(config) {
-  var generateBrowsers = require('./karma-sauce-generator.js')
-  var customLaunchers = generateBrowsers([
-    'last 3 versions',
-    'not ie < 11'
-  ]);
+  var customLaunchers = {};
+  var generateBrowsers;
+
+  if (config.fullRun) {
+    generateBrowsers = require('./karma-sauce-generator.js')
+    customLaunchers = generateBrowsers([
+      'last 3 versions',
+      'not ie < 11'
+    ]);
+  }
 
   config.set({
     sauceLabs: {

@@ -1,0 +1,122 @@
+From 28c2f8c558fd3d668c94f69bf55591872ded4061 Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Sun, 13 Nov 2016 02:37:21 -0800
+Subject: [PATCH] .
+
+---
+ lib/slim/compiler.rb  | 35 ++++++++++++++++++++++++-----------
+ lib/slim/optimizer.rb |  6 +++---
+ 2 files changed, 27 insertions(+), 14 deletions(-)
+
+diff --git a/lib/slim/compiler.rb b/lib/slim/compiler.rb
+index 455469a..07d400a 100644
+--- a/lib/slim/compiler.rb
++++ b/lib/slim/compiler.rb
+@@ -24,7 +24,8 @@ module Slim
+       text_indent = last_indent = -1; enders = []
+ 
+       @template.each_line do |line|
+-        line.chomp!; line.rstrip!
++        line = line.chomp
++        line = line.rstrip
+ 
+         if line.length == 0
+           @_buffer << "_buf << \"<br/>\";" if @in_text
+@@ -66,16 +67,16 @@ module Slim
+ 
+         if attrs
+           attrs = normalize_attributes(attrs) if shortcut_attrs
+-          attrs.gsub!('"', '\"')
++          attrs = attrs.gsub('"', '\"')
+         end
+ 
+         if string
+-          string.strip!
++          string = string.strip
+           string = nil if string.empty?
+         end
+ 
+         unless indent > last_indent
+-          begin
++          loop do
+             break if enders.empty?
+             continue_closing = true
+             ender, ender_indent = enders.pop
+@@ -85,10 +86,15 @@ module Slim
+                 @_buffer << ender
+               end
+             else
+-              enders << [ender, ender_indent] 
++	      enders << [ender, ender_indent]
+               continue_closing = false
+             end
+-          end while continue_closing == true
++	    if continue_closing == true
++	      next
++	    else
++	      break
++	    end
++	  end
+         end
+ 
+         last_indent = indent
+@@ -103,7 +109,7 @@ module Slim
+           end
+ 
+           if string
+-            string.lstrip!
++            string = string.lstrip
+             if string =~ REGEX_LINE_CONTAINS_OUTPUT_CODE
+               @_buffer << "_buf << #{parenthesesify_method($1.strip)};"
+             else
+@@ -145,16 +151,23 @@ module Slim
+     # adds a pair of parentheses to the method
+     def parenthesesify_method(string)
+       if string =~ REGEX_METHOD_HAS_NO_PARENTHESES
+-        string.sub!(' ', '(') && string.sub!(REGEX_CODE_CONTROL_WORD_DETECTED, '\2) \3 \4') || string << ')'
++        original_string = string
++        string = string.sub(' ', '(')
++
++        if string != original_string
++          string = string.sub(REGEX_CODE_CONTROL_WORD_DETECTED, '\2) \3 \4')
++        else
++           string +=  ')'
++        end
+       end
+       string
+     end
+ 
+     # converts 'p#hello.world' to 'p id="hello" class="world"'
+     def normalize_attributes(string)
+-      string.sub!(REGEX_FIND_ATTR_ID, ' id="\1"')
+-      string.sub!(REGEX_FIND_ATTR_CLASS, ' class="\1"')
+-      string.gsub!('.', ' ')
++      string = string.sub(REGEX_FIND_ATTR_ID, ' id="\1"')
++      string = string.sub(REGEX_FIND_ATTR_CLASS, ' class="\1"')
++      string = string.gsub('.', ' ')
+       string
+     end
+   end
+diff --git a/lib/slim/optimizer.rb b/lib/slim/optimizer.rb
+index 9ae5c71..ed10266 100644
+--- a/lib/slim/optimizer.rb
++++ b/lib/slim/optimizer.rb
+@@ -56,12 +56,12 @@ module Slim
+       @_buffer.each do |line|
+         if line =~ /^_buf << "(.+)"/
+           string ||= ""
+-          string << $1
++	  string += $1
+         else
+           if string
+-            @optimized << "_buf << \"#{string}\";"
++	    @optimized += "_buf << \"#{string}\";"
+           end
+-          @optimized << line
++	  @optimized += line
+           string = nil
+         end
+       end
+-- 
+2.10.0
+

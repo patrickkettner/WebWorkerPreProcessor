@@ -1,0 +1,134 @@
+From 4b241704c99b2df3fc8bbfefd56ce4fdb816fc4b Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Tue, 15 Nov 2016 01:22:22 -0800
+Subject: [PATCH] .
+
+---
+ Gemfile                     |  2 +-
+ lib/slim/embedded_engine.rb |  4 ++--
+ lib/slim/parser.rb          | 24 ++++++++++++++++--------
+ slim.gemspec                |  8 --------
+ 4 files changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/Gemfile b/Gemfile
+index f6a560f..a1b93f3 100644
+--- a/Gemfile
++++ b/Gemfile
+@@ -1,3 +1,3 @@
+ source :rubygems
+ 
+-gemspec
+\ No newline at end of file
++gemspec
+diff --git a/lib/slim/embedded_engine.rb b/lib/slim/embedded_engine.rb
+index a862c0f..f282cb5 100644
+--- a/lib/slim/embedded_engine.rb
++++ b/lib/slim/embedded_engine.rb
+@@ -21,9 +21,9 @@ module Slim
+     def collect_text(body)
+       body.inject('') do |text, exp|
+         if exp[0] == :slim && exp[1] == :text
+-          text << exp[2]
++	  text += exp[2]
+         elsif exp[0] == :newline
+-          text << "\n"
++	  text += "\n"
+         end
+         text
+       end
+diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
+index af3a931..654526f 100644
+--- a/lib/slim/parser.rb
++++ b/lib/slim/parser.rb
+@@ -75,7 +75,7 @@ module Slim
+         lineno += 1
+ 
+         # Remove the newline at the end
+-        line.chomp!
++        line = line.chomp
+ 
+         # Handle broken lines
+         if broken_line
+@@ -99,7 +99,7 @@ module Slim
+         indent = line[/^[ \t]*/].gsub("\t", @tab).size
+ 
+         # Remove the indentation
+-        line.lstrip!
++        line = line.lstrip
+ 
+         # Handle blocks with multiple lines
+         if block_indent
+@@ -174,7 +174,7 @@ module Slim
+           block_indent = indent
+ 
+           in_comment = line[0] == ?/
+-          line.slice!(0)
++          line = line.slice(1..-1)
+           if !in_comment && !line.strip.empty?
+             block << [:slim, :text, line.sub(/^( )/, '')]
+             text_indent = block_indent + ($1 ? 2 : 1)
+@@ -272,7 +272,8 @@ module Slim
+       if line =~ DELIMITER_REGEX
+         delimiter = DELIMITERS[$1]
+         # Replace the delimiter with a space so we can continue parsing as normal.
+-        line[0] = ?\s
++        newFirstChar = ?\s
++        line = newFirstChar + line.slice(1..-1)
+       end
+ 
+       # Parse attributes
+@@ -293,7 +294,7 @@ module Slim
+       # Find ending delimiter
+       if !delimiter.empty?
+         if line[0, 1] == delimiter
+-          line.slice!(0)
++          line = line.slice(1..-1)
+         else
+           syntax_error! "Expected closing delimiter #{delimiter}", orig_line, lineno, orig_line.size - line.size
+         end
+@@ -340,15 +341,22 @@ module Slim
+         elsif line =~ DELIMITER_REGEX
+           # Delimiter found, push it on the stack
+           stack << DELIMITERS[$1]
+-          value << line.slice!(0)
++
++          firstChar = line.slice(0)
++          line = line.slice(1..-1)
++          value += firstChar
+         elsif line =~ CLOSE_DELIMITER_REGEX
+           # Closing delimiter found, pop it from the stack if everything is ok
+           syntax_error! "Unexpected closing #{$1}", orig_line, lineno if stack.empty?
+           syntax_error! "Expected closing #{stack.last}", orig_line, lineno if stack.last != $1
+-          value << line.slice!(0)
++          firstChar = line.slice(0)
++          line = line.slice(1..-1)
++          value += firstChar
+           stack.pop
+         else
+-          value << line.slice!(0)
++          firstChar = line.slice(0)
++          line = line.slice(1..-1)
++          value += firstChar
+         end
+       end
+ 
+diff --git a/slim.gemspec b/slim.gemspec
+index 67cd189..da2bed9 100644
+--- a/slim.gemspec
++++ b/slim.gemspec
+@@ -23,12 +23,4 @@ Gem::Specification.new do |s|
+ 
+   s.add_runtime_dependency(%q<temple>, ["~> 0.1.5"])
+   s.add_runtime_dependency(%q<tilt>, ["~> 1.1"])
+-  s.add_development_dependency(%q<rake>, [">= 0.8.7"])
+-  s.add_development_dependency(%q<haml>, [">= 0"])
+-  s.add_development_dependency(%q<erubis>, [">= 0"])
+-  s.add_development_dependency(%q<minitest>, [">= 0"])
+-  s.add_development_dependency(%q<rcov>, [">= 0"])
+-  s.add_development_dependency(%q<rdiscount>, [">= 0"])
+-  s.add_development_dependency(%q<liquid>, [">= 0"])
+-  s.add_development_dependency(%q<yard>, [">= 0"])
+ end
+-- 
+2.10.0
+

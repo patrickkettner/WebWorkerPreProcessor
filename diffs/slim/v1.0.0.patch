@@ -1,0 +1,271 @@
+From d5aa296dd3affaa836462d85271d19a1d44dfb95 Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Sat, 5 Nov 2016 23:42:11 -0700
+Subject: [PATCH] .
+
+---
+ lib/slim/interpolation.rb | 24 ++++++++++++--------
+ lib/slim/parser.rb        | 58 +++++++++++++++++++++++------------------------
+ 2 files changed, 43 insertions(+), 39 deletions(-)
+
+diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
+index 86be670..dcf42a7 100644
+--- a/lib/slim/interpolation.rb
++++ b/lib/slim/interpolation.rb
+@@ -14,18 +14,18 @@ module Slim
+       block = [:multi]
+       until string.empty?
+         case string
+-        when /\A\\#\{/
++        when /^\\#\{/
+           # Escaped interpolation
+           # HACK: Use :slim :output because this is used by InterpolateTiltEngine
+           # to filter out protected strings (Issue #141).
+           block << [:slim, :output, false, '\'#{\'', [:multi]]
+           string = $'
+-        when /\A#\{/
++        when /^#\{/
+           # Interpolation
+           string, code = parse_expression($')
+-          escape = code !~ /\A\{.*\}\Z/
++          escape = code !~ /^\{.*\}$/
+           block << [:slim, :output, escape, escape ? code : code[1..-2], [:multi]]
+-        when /\A([^#]+|#)/
++        when /^([^#]+|#)/
+           # Static text
+           block << [:static, $&]
+           string = $'
+@@ -40,23 +40,29 @@ module Slim
+       stack, code = [], ''
+ 
+       until string.empty?
+-        if stack.empty? && string =~ /\A\}/
++        if stack.empty? && string =~ /^\}/
+           # Stack is empty, this means we are finished
+           # if the next character is a closing bracket
+-          string.slice!(0)
++          string = string.slice(1..-1)
+           break
+         elsif string =~ Parser::DELIMITER_REGEX
+           # Delimiter found, push it on the stack
+           stack << Parser::DELIMITERS[$&]
+-          code << string.slice!(0)
++          firstChar = string.slice(0)
++          string = string.slice(1..-1)
++          code += firstChar
+         elsif string =~ Parser::CLOSE_DELIMITER_REGEX
+           # Closing delimiter found, pop it from the stack if everything is ok
+           raise "Text interpolation: Unexpected closing #{$&}" if stack.empty?
+           raise "Text interpolation: Expected closing #{stack.last}" if stack.last != $&
+-          code << string.slice!(0)
++          firstChar = string.slice(0)
++          string = string.slice(1..-1)
++          code += firstChar
+           stack.pop
+         else
+-          code << string.slice!(0)
++          firstChar = string.slice(0)
++          string = string.slice(1..-1)
++          code += firstChar
+         end
+       end
+ 
+diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
+index ad5ef22..211943e 100644
+--- a/lib/slim/parser.rb
++++ b/lib/slim/parser.rb
+@@ -44,8 +44,6 @@ module Slim
+         old = str.encoding
+         str = str.dup if str.frozen?
+         str.force_encoding(options[:encoding])
+-        # Fall back to old encoding if new encoding is invalid
+-        str.force_encoding(old_enc) unless str.valid_encoding?
+       end
+ 
+       result = [:multi]
+@@ -62,22 +60,22 @@ module Slim
+       '[' => ']',
+       '{' => '}',
+     }.freeze
+-    DELIMITER_REGEX = /\A[\(\[\{]/
+-    CLOSE_DELIMITER_REGEX = /\A[\)\]\}]/
++    DELIMITER_REGEX = /^[\(\[\{]/
++    CLOSE_DELIMITER_REGEX = /^[\)\]\}]/
+ 
+     private
+ 
+-    ATTR_NAME_REGEX = '\A\s*(\w[:\w-]*)'
+-    QUOTED_VALUE_REGEX = /\A("[^"]*"|'[^']*')/
++    ATTR_NAME_REGEX = '^\s*(\w[:\w-]*)'
++    QUOTED_VALUE_REGEX = /^("[^"]*"|'[^']*')/
+     ATTR_SHORTCUT = {
+       '#' => 'id',
+       '.' => 'class',
+     }.freeze
+ 
+     if RUBY_VERSION > '1.9'
+-      CLASS_ID_REGEX = /\A(#|\.)([\w\u00c0-\uFFFF][\w:\u00c0-\uFFFF-]*)/
++      CLASS_ID_REGEX = /^(#|\.)([\w\u00c0-\uFFFF][\w:\u00c0-\uFFFF-]*)/
+     else
+-      CLASS_ID_REGEX = /\A(#|\.)(\w[\w:-]*)/
++      CLASS_ID_REGEX = /^(#|\.)(\w[\w:-]*)/
+     end
+ 
+     def reset(lines = nil, stacks = nil)
+@@ -120,7 +118,7 @@ module Slim
+     def get_indent(line)
+       # Figure out the indentation. Kinda ugly/slow way to support tabs,
+       # but remember that this is only done at parsing time.
+-      line[/\A[ \t]*/].gsub("\t", @tab).size
++      line[/^[ \t]*/].gsub("\t", @tab).size
+     end
+ 
+     def parse_line
+@@ -132,7 +130,7 @@ module Slim
+       indent = get_indent(@line)
+ 
+       # Remove the indentation
+-      @line.lstrip!
++      @line = @line.lstrip
+ 
+       # If there's more stacks than indents, it means that the previous
+       # line is expecting this line to be indented.
+@@ -171,16 +169,16 @@ module Slim
+ 
+     def parse_line_indicators
+       case @line
+-      when /\A\//
++      when /^\//
+         # Found a comment block.
+-        if @line =~ %r{\A/!( ?)(.*)\Z}
++        if @line =~ %r{^/!( ?)(.*)$}
+           # HTML comment
+           block = [:multi]
+           @stacks.last <<  [:html, :comment, block]
+           @stacks << block
+           @stacks.last << [:slim, :interpolate, $2] if $2
+           parse_text_block($1 ? 2 : 1)
+-        elsif @line =~ %r{\A/\[\s*(.*?)\s*\]\s*\Z}
++        elsif @line =~ %r{^/\[\s*(.*?)\s*\]\s*$}
+           # HTML conditional comment
+           block = [:multi]
+           @stacks.last << [:slim, :condcomment, $1, block]
+@@ -189,43 +187,43 @@ module Slim
+           # Slim comment
+           parse_comment_block
+         end
+-      when /\A[\|']/
++      when /^[\|']/
+         # Found a text block.
+         trailing_ws = @line.slice!(0) == ?'
+         if @line.strip.empty?
+           parse_text_block
+         else
+-          @stacks.last << [:slim, :interpolate, @line.sub(/\A( )/, '')]
++          @stacks.last << [:slim, :interpolate, @line.sub(/^( )/, '')]
+           parse_text_block($1 ? 2 : 1)
+         end
+         @stacks.last << [:static, ' '] if trailing_ws
+-      when /\A-/
++      when /^-/
+         # Found a code block.
+         # We expect the line to be broken or the next line to be indented.
+         block = [:multi]
+-        @line.slice!(0)
++        @line = @line.slice(1..-1)
+         @stacks.last << [:slim, :control, parse_broken_line, block]
+         @stacks << block
+-      when /\A=/
++      when /^=/
+         # Found an output block.
+         # We expect the line to be broken or the next line to be indented.
+-        @line =~ /\A=(=?)('?)/
++        @line =~ /^=(=?)('?)/
+         @line = $'
+         block = [:multi]
+         @stacks.last << [:slim, :output, $1.empty?, parse_broken_line, block]
+         @stacks.last << [:static, ' '] unless $2.empty?
+         @stacks << block
+-      when /\A(\w+):\s*\Z/
++      when /^(\w+):\s*$/
+         # Embedded template detected. It is treated as block.
+         block = [:multi]
+         @stacks.last << [:newline] << [:slim, :embedded, $1, block]
+         @stacks << block
+         parse_text_block
+         return # Don't append newline
+-      when /\Adoctype\s+/i
++      when /^doctype\s+/i
+         # Found doctype declaration
+         @stacks.last << [:html, :doctype, $'.strip]
+-      when /\A([#\.]|\w[:\w-]*)/
++      when /^([#\.]|\w[:\w-]*)/
+         # Found a HTML tag.
+         parse_tag($&)
+       else
+@@ -258,7 +256,7 @@ module Slim
+         # The text block lines must be at least indented
+         # as deep as the first line.
+         if indent < text_indent
+-          @line.lstrip!
++          @line = @line.lstrip
+           syntax_error!('Unexpected text indentation')
+         end
+ 
+@@ -284,30 +282,30 @@ module Slim
+       if tag == '#' || tag == '.'
+         tag = 'div'
+       else
+-        @line.slice!(0, tag.size)
++        @line = @line.slice(tag.size..-1)
+       end
+ 
+       tag = [:html, :tag, tag, parse_attributes]
+       @stacks.last << tag
+ 
+       case @line
+-      when /\A\s*=(=?)/
++      when /^\s*=(=?)/
+         # Handle output code
+         block = [:multi]
+         @line = $'
+         content = [:slim, :output, $1 != '=', parse_broken_line, block]
+         tag << content
+         @stacks << block
+-      when /\A\s*\//
++      when /^\s*\//
+         # Closed tag. Do nothing
+-      when /\A\s*\Z/
++      when /^\s*$/
+         # Empty content
+         content = [:multi]
+         tag << content
+         @stacks << content
+       else
+         # Text content
+-        content = [:multi, [:slim, :interpolate, @line.sub(/\A( )/, '')]]
++        content = [:multi, [:slim, :interpolate, @line.sub(/^( )/, '')]]
+         tag << content
+         @stacks << content
+         parse_text_block(size - @line.size + ($1 ? 1 : 0))
+@@ -361,7 +359,7 @@ module Slim
+         break unless delimiter
+ 
+         # Find ending delimiter
+-        if @line =~ /\A\s*#{Regexp.escape delimiter}/
++        if @line =~ /^\s*#{Regexp.escape delimiter}/
+           @line = $'
+           break
+         end
+@@ -389,7 +387,7 @@ module Slim
+       value = ''
+ 
+       # Attribute ends with space or attribute delimiter
+-      end_regex = /\A[\s#{Regexp.escape delimiter.to_s}]/
++      end_regex = /^[\s#{Regexp.escape delimiter.to_s}]/
+ 
+       until @line.empty?
+         if stack.empty? && @line =~ end_regex
+-- 
+2.10.0
+

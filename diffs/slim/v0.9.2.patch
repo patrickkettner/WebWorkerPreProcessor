@@ -1,0 +1,74 @@
+From be7dd24153d72e1dd23a6de98a8a1dbf1c7ac7f9 Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Sat, 5 Nov 2016 20:54:16 -0700
+Subject: [PATCH] .
+
+---
+ lib/slim/interpolation.rb | 10 +++++++---
+ lib/slim/parser.rb        |  6 +++---
+ 2 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
+index 01417aa..12ae85e 100644
+--- a/lib/slim/interpolation.rb
++++ b/lib/slim/interpolation.rb
+@@ -39,7 +39,7 @@ module Slim
+         if stack.empty? && string =~ /^\}/
+           # Stack is empty, this means we are finished
+           # if the next character is a closing bracket
+-          string.slice!(0)
++	  string = string.slice(1..-1)
+           break
+         elsif string =~ Parser::DELIMITER_REGEX
+           # Delimiter found, push it on the stack
+@@ -49,10 +49,14 @@ module Slim
+           # Closing delimiter found, pop it from the stack if everything is ok
+           raise "Text interpolation: Unexpected closing #{$&}" if stack.empty?
+           raise "Text interpolation: Expected closing #{stack.last}" if stack.last != $&
+-          code << string.slice!(0)
++	  firstChar = string.slice(0)
++	  string = string.slice(1..-1)
++	  code += firstChar
+           stack.pop
+         else
+-          code << string.slice!(0)
++	  firstChar = string.slice(0)
++	  string = string.slice(1..-1)
++	  code += firstChar
+         end
+       end
+ 
+diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
+index b5b1801..0cddeb1 100644
+--- a/lib/slim/parser.rb
++++ b/lib/slim/parser.rb
+@@ -78,7 +78,7 @@ module Slim
+         lineno += 1
+ 
+         # Remove the newline at the end
+-        line.chomp!
++	line = line.chomp
+ 
+         # Handle broken lines
+         if broken_line
+@@ -102,7 +102,7 @@ module Slim
+         indent = line[/^[ \t]*/].gsub("\t", @tab).size
+ 
+         # Remove the indentation
+-        line.lstrip!
++	line = line.lstrip
+ 
+         # Handle blocks with multiple lines
+         if block_indent
+@@ -178,7 +178,7 @@ module Slim
+                            [:multi, block, [:slim, :text, ' ']]
+                          elsif ch == ?/ && line[0] == ?!
+                            # HTML comment
+-                           line.slice!(0)
++			   line = line.slice(1..-1)
+                            [:slim, :comment, block]
+                          else
+                            in_comment = ch == ?/
+-- 
+2.10.0
+

@@ -1,0 +1,103 @@
+From 2c27b6fb39cb4abd2dfb9d22d4396dfaaf5468c7 Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Sun, 13 Nov 2016 00:34:11 -0800
+Subject: [PATCH] .
+
+---
+ lib/slim/compiler.rb  | 22 ++++++++++++++--------
+ lib/slim/optimizer.rb |  6 +++---
+ 2 files changed, 17 insertions(+), 11 deletions(-)
+
+diff --git a/lib/slim/compiler.rb b/lib/slim/compiler.rb
+index 438cd77..7d730f9 100644
+--- a/lib/slim/compiler.rb
++++ b/lib/slim/compiler.rb
+@@ -15,7 +15,8 @@ module Slim
+       last_indent = -1; enders = []
+ 
+       @template.each_line do |line|
+-        line.chomp!; line.rstrip!
++        line = line.chomp;
++        line = line.rstrip
+ 
+ 
+         next if line.length == 0
+@@ -25,7 +26,7 @@ module Slim
+         indent        =   $1.to_s.length
+         marker        =   $2
+         attrs         =   $3
+-        string        =   $4 
++        string        =   $4
+ 
+         line_type     = case marker
+                         when '`' then :text
+@@ -36,16 +37,16 @@ module Slim
+                         end
+ 
+         if attrs
+-          attrs.gsub!('"', '\"') 
++          attrs = attrs.gsub('"', '\"')
+         end
+ 
+         if string
+-          string.strip!
++          string = string.strip
+           string    = nil unless string.strip.length > 0
+         end
+ 
+         unless indent > last_indent
+-          begin
++          loop do
+             break if enders.empty?
+             continue_closing = true
+             ender, ender_indent = enders.pop
+@@ -55,10 +56,15 @@ module Slim
+                 @_buffer << ender
+               end
+             else
+-              enders << [ender, ender_indent] 
++              enders << [ender, ender_indent]
+               continue_closing = false
+             end
+-          end while continue_closing == true
++            if continue_closing == true
++              next
++            else
++              break
++            end
++          end
+         end
+ 
+         last_indent = indent
+@@ -73,7 +79,7 @@ module Slim
+           end
+ 
+           if string
+-            string.lstrip!
++            string = string.lstrip
+             if string =~ /^=(.*)/
+               @_buffer << "_buf << #{$1.strip};"
+             else
+diff --git a/lib/slim/optimizer.rb b/lib/slim/optimizer.rb
+index 1c3b75c..42e1a06 100644
+--- a/lib/slim/optimizer.rb
++++ b/lib/slim/optimizer.rb
+@@ -55,12 +55,12 @@ module Slim
+       @_buffer.each do |line|
+         if line =~ /^_buf << "(.+)"/
+           string ||= ""
+-          string << $1
++	  string += $1
+         else
+           if string
+-            @optimized << "_buf << \"#{string}\";"
++	    @optimized += "_buf << \"#{string}\";"
+           end
+-          @optimized << line
++	  @optimized += line
+           string = nil
+         end
+       end
+-- 
+2.10.0
+

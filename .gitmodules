@@ -10,3 +10,9 @@
 [submodule "lib/pug"]
 	path = lib/pug
 	url = https://github.com/pugjs/pug
+[submodule "lib/slim"]
+	path = lib/slim
+	url = https://github.com/slim-template/slim
+[submodule "lib/haml"]
+	path = lib/haml
+	url = https://github.com/haml/haml

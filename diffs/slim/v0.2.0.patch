@@ -1,0 +1,129 @@
+From cce5649e8d7e9a253586818e2dcfbbceff602b6e Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Sat, 12 Nov 2016 23:02:26 -0800
+Subject: [PATCH] .
+
+---
+ lib/slim/compiler.rb | 44 +++++++++++++++++++++++++-------------------
+ 1 file changed, 25 insertions(+), 19 deletions(-)
+
+diff --git a/lib/slim/compiler.rb b/lib/slim/compiler.rb
+index c54930d..eef9914 100644
+--- a/lib/slim/compiler.rb
++++ b/lib/slim/compiler.rb
+@@ -12,7 +12,8 @@ module Slim
+       last_indent = -1; enders = []
+ 
+       @template.each_line do |line|
+-        line.chomp!; line.rstrip!
++	line = line.chomp
++	line = line.rstrip
+ 
+ 
+         next if line.length == 0
+@@ -22,7 +23,7 @@ module Slim
+         indent        =   $1.to_s.length
+         marker        =   $2
+         attrs         =   $3
+-        string        =   $4 
++	string        =   $4
+ 
+         line_type     = case marker
+                         when '`' then :text
+@@ -33,29 +34,34 @@ module Slim
+                         end
+ 
+         if attrs
+-          attrs.gsub!('"', '\"') 
++          attrs = attrs.gsub('"', '\"')
+         end
+ 
+         if string
+-          string.strip!
++          string = string.strip
+           string    = nil unless string.strip.length > 0
+         end
+ 
+         unless indent > last_indent
+-          begin
++          loop do
+             break if enders.empty?
+             continue_closing = true
+             ender, ender_indent = enders.pop
+ 
+             if ender_indent >= indent
+               unless ender == 'end;' && line_type == :control_code
+-                @compiled << ender
++                @compiled += ender
+               end
+             else
+-              enders << [ender, ender_indent] 
++              enders << [ender, ender_indent]
+               continue_closing = false
+             end
+-          end while continue_closing == true
++            if continue_closing == true
++              next
++            else
++              break
++            end
++          end
+         end
+ 
+         last_indent = indent
+@@ -63,41 +69,41 @@ module Slim
+         case line_type
+         when :markup
+           if AUTOCLOSED.include?(marker)
+-            @compiled << "_buf << \"<#{marker}#{attrs || ''}/>\";"
++            @compiled += "_buf << \"<#{marker}#{attrs || ''}/>\";"
+           else
+             enders << ["_buf << \"</#{marker}>\";", indent]
+-            @compiled << "_buf << \"<#{marker}#{attrs || ''}>\";"
++            @compiled += "_buf << \"<#{marker}#{attrs || ''}>\";"
+           end
+ 
+           if string
+-            string.lstrip!
++            string = string.lstrip
+             if string =~ /^=(.*)/
+-              @compiled << "_buf << #{$1.strip};"
++              @compiled += "_buf << #{$1.strip};"
+             else
+-              @compiled << "_buf << \"#{string}\";"
++              @compiled += "_buf << \"#{string}\";"
+             end
+           end
+         when :text
+-          @compiled << "_buf << \"#{string}\";"
++          @compiled += "_buf << \"#{string}\";"
+         when :control_code
+           unless enders.detect{|e| e[0] == 'end;' && e[1] == indent}
+             enders << ['end;', indent]
+           end
+-          @compiled << "#{string};"
++          @compiled += "#{string};"
+         when :output_code
+-          @compiled << "_buf << #{string};"
++          @compiled += "_buf << #{string};"
+         when :declaration
+-          @compiled << "_buf << \"<!#{string}>\";"
++          @compiled += "_buf << \"<!#{string}>\";"
+         else
+           raise NotImplementedError.new("Don't know how to parse line: #{line}")
+         end
+       end # template iterator
+ 
+       enders.reverse_each do |t|
+-        @compiled << t[0].to_s
++        @compiled += t[0].to_s
+       end
+ 
+-      @compiled << "_buf.join;"
++      @compiled += "_buf.join;"
+     end
+   end
+ end
+-- 
+2.10.0
+

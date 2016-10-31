@@ -1,0 +1,95 @@
+From 472c31b0bd344f08ccd161fbd8b844e08333eacc Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Sat, 5 Nov 2016 21:52:13 -0700
+Subject: [PATCH] .
+
+---
+ lib/slim/interpolation.rb | 14 ++++++++++----
+ lib/slim/parser.rb        | 15 ++++++++++-----
+ 2 files changed, 20 insertions(+), 9 deletions(-)
+
+diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
+index feacf27..12dd684 100644
+--- a/lib/slim/interpolation.rb
++++ b/lib/slim/interpolation.rb
+@@ -41,20 +41,26 @@ module Slim
+         if stack.empty? && string =~ /^\}/
+           # Stack is empty, this means we are finished
+           # if the next character is a closing bracket
+-          string.slice!(0)
++	  string = string.slice(1..-1)
+           break
+         elsif string =~ Parser::DELIMITER_REGEX
+           # Delimiter found, push it on the stack
+           stack << Parser::DELIMITERS[$&]
+-          code << string.slice!(0)
++	  firstChar = string.slice(0)
++	  string = string.slice(1..-1)
++	  code += firstChar
+         elsif string =~ Parser::CLOSE_DELIMITER_REGEX
+           # Closing delimiter found, pop it from the stack if everything is ok
+           raise "Text interpolation: Unexpected closing #{$&}" if stack.empty?
+           raise "Text interpolation: Expected closing #{stack.last}" if stack.last != $&
+-          code << string.slice!(0)
++	  firstChar = string.slice(0)
++	  string = string.slice(1..-1)
++	  code += firstChar
+           stack.pop
+         else
+-          code << string.slice!(0)
++	  firstChar = string.slice(0)
++	  string = string.slice(1..-1)
++	  code += firstChar
+         end
+       end
+ 
+diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
+index 1d3d7f4..5949e26 100644
+--- a/lib/slim/parser.rb
++++ b/lib/slim/parser.rb
+@@ -43,7 +43,7 @@ module Slim
+         str = str.dup if str.frozen?
+         str.force_encoding(options[:encoding])
+         # Fall back to old encoding if new encoding is invalid
+-        str.force_encoding(old_enc) unless str.valid_encoding?
++	#str.force_encoding(old_enc) unless str.valid_encoding?
+       end
+ 
+       lineno = 0
+@@ -85,7 +85,7 @@ module Slim
+         lineno += 1
+ 
+         # Remove the newline at the end
+-        line.chomp!
++	line = line.chomp
+ 
+         # Handle broken lines
+         if broken_line
+@@ -109,7 +109,7 @@ module Slim
+         indent = line[/^[ \t]*/].gsub("\t", @tab).size
+ 
+         # Remove the indentation
+-        line.lstrip!
++	line = line.lstrip
+ 
+         # Handle blocks with multiple lines
+         if block_indent
+@@ -198,8 +198,13 @@ module Slim
+           # to push a block to the stack.
+           block = [:multi]
+           block_indent = indent
+-          stacks.last << (line.slice!(0) == ?' ?
+-                          [:multi, block, [:static, ' ']] : block)
++	  line = line.slice(0)
++	  blockToAdd = block
++	  if line.nil?
++	    line = ''
++	    blockToAdd = [:multi, block, [:static, ' ']]
++	  end
++	  stacks.last << blockToAdd
+           stacks << block
+           unless line.strip.empty?
+             block << [:slim, :interpolate, line.sub(/^( )/, '')]
+-- 
+2.10.0
+
