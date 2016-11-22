@@ -76,7 +76,7 @@ module.exports = function(grunt) {
       less: ['./dist/less-*', './lib/less/node_modules'],
       jade: ['./dist/jade-*', './lib/pug/node_modules'],
       pug: ['./dist/pug-*', './lib/pug/node_modules'],
-      slim: ['./dist/slim-*'],
+      slim: ['./dist/slim-*', './lib/slim/.bundle'],
       RUBY: ['./Gemfile.lock', './ruby']
     },
     karma: {
@@ -104,6 +104,8 @@ module.exports = function(grunt) {
     gitlog: {
       options: {
         pretty: '{"tag": "%D", "hash": "%H"} --grunt-gitlog-separator--',
+        tags: true,
+        noWalk: true,
         callback: filterGitLog
       },
       jade: {

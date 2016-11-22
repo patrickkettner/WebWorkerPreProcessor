@@ -1,45 +1,64 @@
-From be7dd24153d72e1dd23a6de98a8a1dbf1c7ac7f9 Mon Sep 17 00:00:00 2001
+From 72933105312f0e1efa44553ba48bf4794a991d1f Mon Sep 17 00:00:00 2001
 From: Patrick Kettner <patrickkettner@gmail.com>
-Date: Sat, 5 Nov 2016 20:54:16 -0700
+Date: Tue, 15 Nov 2016 14:26:40 -0800
 Subject: [PATCH] .
 
 ---
- lib/slim/interpolation.rb | 10 +++++++---
- lib/slim/parser.rb        |  6 +++---
- 2 files changed, 10 insertions(+), 6 deletions(-)
+ lib/slim/embedded_engine.rb |  2 +-
+ lib/slim/interpolation.rb   | 14 ++++++++++----
+ lib/slim/parser.rb          | 25 +++++++++++++++++--------
+ 3 files changed, 28 insertions(+), 13 deletions(-)
 
+diff --git a/lib/slim/embedded_engine.rb b/lib/slim/embedded_engine.rb
+index e69d85f..1b3327e 100644
+--- a/lib/slim/embedded_engine.rb
++++ b/lib/slim/embedded_engine.rb
+@@ -28,7 +28,7 @@ module Slim
+ 
+     def collect_text(body)
+       body.inject('') do |text, exp|
+-        text << exp[2] if exp[0] == :slim && exp[1] == :text
++        text += exp[2] if exp[0] == :slim && exp[1] == :text
+         text
+       end
+     end
 diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
-index 01417aa..12ae85e 100644
+index 01417aa..6e71e00 100644
 --- a/lib/slim/interpolation.rb
 +++ b/lib/slim/interpolation.rb
-@@ -39,7 +39,7 @@ module Slim
+@@ -39,20 +39,26 @@ module Slim
          if stack.empty? && string =~ /^\}/
            # Stack is empty, this means we are finished
            # if the next character is a closing bracket
 -          string.slice!(0)
-+	  string = string.slice(1..-1)
++          string = string.slice(1..-1)
            break
          elsif string =~ Parser::DELIMITER_REGEX
            # Delimiter found, push it on the stack
-@@ -49,10 +49,14 @@ module Slim
+           stack << Parser::DELIMITERS[$&]
+-          code << string.slice!(0)
++          firstChar = string.slice(0)
++          string = string.slice(1..-1)
++          code += firstChar
+         elsif string =~ Parser::CLOSE_DELIMITER_REGEX
            # Closing delimiter found, pop it from the stack if everything is ok
            raise "Text interpolation: Unexpected closing #{$&}" if stack.empty?
            raise "Text interpolation: Expected closing #{stack.last}" if stack.last != $&
 -          code << string.slice!(0)
-+	  firstChar = string.slice(0)
-+	  string = string.slice(1..-1)
-+	  code += firstChar
++            firstChar = string.slice(0)
++          string = string.slice(1..-1)
++          code += firstChar
            stack.pop
          else
 -          code << string.slice!(0)
-+	  firstChar = string.slice(0)
-+	  string = string.slice(1..-1)
-+	  code += firstChar
++          firstChar = string.slice(0)
++          string = string.slice(1..-1)
++          code += firstChar
          end
        end
  
 diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
-index b5b1801..0cddeb1 100644
+index b5b1801..24d0918 100644
 --- a/lib/slim/parser.rb
 +++ b/lib/slim/parser.rb
 @@ -78,7 +78,7 @@ module Slim
@@ -60,15 +79,61 @@ index b5b1801..0cddeb1 100644
  
          # Handle blocks with multiple lines
          if block_indent
-@@ -178,7 +178,7 @@ module Slim
+@@ -168,7 +168,9 @@ module Slim
+         case line[0]
+         when ?|, ?', ?/
+           # Found a block.
+-          ch = line.slice!(0)
++          firstChar = line.slice(0)
++          line = line.slice(1..-1)
++          ch = firstChar
+ 
+           # We're now expecting the next line to be indented, so we'll need
+           # to push a block to the stack.
+@@ -178,7 +180,7 @@ module Slim
                             [:multi, block, [:slim, :text, ' ']]
                           elsif ch == ?/ && line[0] == ?!
                             # HTML comment
 -                           line.slice!(0)
-+			   line = line.slice(1..-1)
++                           line = line.slice(1..-1)
                             [:slim, :comment, block]
                           else
                             in_comment = ch == ?/
+@@ -291,7 +293,8 @@ module Slim
+       if line =~ DELIMITER_REGEX
+         delimiter = DELIMITERS[$&]
+         # Replace the delimiter with a space so we can continue parsing as normal.
+-        line[0] = ?\s
++	newFirstChar = ?\s
++	line = newFirstChar + line.slice(1..-1)
+       end
+ 
+       # Parse attributes
+@@ -359,15 +362,21 @@ module Slim
+         elsif line =~ DELIMITER_REGEX
+           # Delimiter found, push it on the stack
+           stack << DELIMITERS[$&]
+-          value << line.slice!(0)
++	  firstChar = line.slice(0)
++	  line = line.slice(1..-1)
++	  value += firstChar
+         elsif line =~ CLOSE_DELIMITER_REGEX
+           # Closing delimiter found, pop it from the stack if everything is ok
+           syntax_error! "Unexpected closing #{$&}", orig_line, lineno if stack.empty?
+           syntax_error! "Expected closing #{stack.last}", orig_line, lineno if stack.last != $&
+-          value << line.slice!(0)
++	    firstChar = line.slice(0)
++	  line = line.slice(1..-1)
++	  value += firstChar
+           stack.pop
+         else
+-          value << line.slice!(0)
++	  firstChar = line.slice(0)
++	  line = line.slice(1..-1)
++	  value += firstChar
+         end
+       end
+ 
 -- 
 2.10.0
 

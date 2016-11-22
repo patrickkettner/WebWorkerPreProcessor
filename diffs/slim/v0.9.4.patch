@@ -1,13 +1,28 @@
-From 472c31b0bd344f08ccd161fbd8b844e08333eacc Mon Sep 17 00:00:00 2001
+From 7387a169d57610c7f50bed91c464bb8f481ee53b Mon Sep 17 00:00:00 2001
 From: Patrick Kettner <patrickkettner@gmail.com>
-Date: Sat, 5 Nov 2016 21:52:13 -0700
+Date: Thu, 17 Nov 2016 00:50:19 -0800
 Subject: [PATCH] .
 
 ---
- lib/slim/interpolation.rb | 14 ++++++++++----
- lib/slim/parser.rb        | 15 ++++++++++-----
- 2 files changed, 20 insertions(+), 9 deletions(-)
+ lib/slim/embedded_engine.rb |  2 +-
+ lib/slim/interpolation.rb   | 14 ++++++++++----
+ lib/slim/parser.rb          | 29 ++++++++++++++---------------
+ slim.gemspec                | 12 +-----------
+ 4 files changed, 26 insertions(+), 31 deletions(-)
 
+diff --git a/lib/slim/embedded_engine.rb b/lib/slim/embedded_engine.rb
+index 931a4ed..480cb72 100644
+--- a/lib/slim/embedded_engine.rb
++++ b/lib/slim/embedded_engine.rb
+@@ -36,7 +36,7 @@ module Slim
+ 
+     def collect_text(body)
+       body[1..-1].inject('') do |text, exp|
+-        exp[0] == :slim && exp[1] == :interpolate ? (text << exp[2]) : text
++	exp[0] == :slim && exp[1] == :interpolate ? (text += exp[2]) : text
+       end
+     end
+ 
 diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
 index feacf27..12dd684 100644
 --- a/lib/slim/interpolation.rb
@@ -44,19 +59,25 @@ index feacf27..12dd684 100644
        end
  
 diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
-index 1d3d7f4..5949e26 100644
+index 1d3d7f4..b996c17 100644
 --- a/lib/slim/parser.rb
 +++ b/lib/slim/parser.rb
-@@ -43,7 +43,7 @@ module Slim
-         str = str.dup if str.frozen?
-         str.force_encoding(options[:encoding])
-         # Fall back to old encoding if new encoding is invalid
+@@ -37,14 +37,6 @@ module Slim
+     # @param [String] str Slim code
+     # @return [Array] Temple expression representing the code
+     def call(str)
+-      # Set string encoding if option is set
+-      if options[:encoding] && str.respond_to?(:encoding)
+-        old = str.encoding
+-        str = str.dup if str.frozen?
+-        str.force_encoding(options[:encoding])
+-        # Fall back to old encoding if new encoding is invalid
 -        str.force_encoding(old_enc) unless str.valid_encoding?
-+	#str.force_encoding(old_enc) unless str.valid_encoding?
-       end
+-      end
  
        lineno = 0
-@@ -85,7 +85,7 @@ module Slim
+       result = [:multi]
+@@ -85,7 +77,7 @@ module Slim
          lineno += 1
  
          # Remove the newline at the end
@@ -65,7 +86,7 @@ index 1d3d7f4..5949e26 100644
  
          # Handle broken lines
          if broken_line
-@@ -109,7 +109,7 @@ module Slim
+@@ -109,7 +101,7 @@ module Slim
          indent = line[/^[ \t]*/].gsub("\t", @tab).size
  
          # Remove the indentation
@@ -74,22 +95,72 @@ index 1d3d7f4..5949e26 100644
  
          # Handle blocks with multiple lines
          if block_indent
-@@ -198,8 +198,13 @@ module Slim
+@@ -198,7 +190,7 @@ module Slim
            # to push a block to the stack.
            block = [:multi]
            block_indent = indent
 -          stacks.last << (line.slice!(0) == ?' ?
--                          [:multi, block, [:static, ' ']] : block)
-+	  line = line.slice(0)
-+	  blockToAdd = block
-+	  if line.nil?
-+	    line = ''
-+	    blockToAdd = [:multi, block, [:static, ' ']]
-+	  end
-+	  stacks.last << blockToAdd
++          stacks.last << (firstChar = line.slice(0); line = line.slice(1..-1); firstChar == ?' ?
+                           [:multi, block, [:static, ' ']] : block)
            stacks << block
            unless line.strip.empty?
-             block << [:slim, :interpolate, line.sub(/^( )/, '')]
+@@ -305,7 +297,8 @@ module Slim
+       if line =~ DELIMITER_REGEX
+         delimiter = DELIMITERS[$&]
+         # Replace the delimiter with a space so we can continue parsing as normal.
+-        line[0] = ?\s
++	newFirstChar = ?\s
++	line = newFirstChar + line.slice(1..-1)
+       end
+ 
+       # Parse attributes
+@@ -374,15 +367,21 @@ module Slim
+         elsif line =~ DELIMITER_REGEX
+           # Delimiter found, push it on the stack
+           stack << DELIMITERS[$&]
+-          value << line.slice!(0)
++	  firstChar = line.slice(0)
++	  line = line.slice(1..-1)
++	  value += firstChar
+         elsif line =~ CLOSE_DELIMITER_REGEX
+           # Closing delimiter found, pop it from the stack if everything is ok
+           syntax_error! "Unexpected closing #{$&}", orig_line, lineno if stack.empty?
+           syntax_error! "Expected closing #{stack.last}", orig_line, lineno if stack.last != $&
+-          value << line.slice!(0)
++	   firstChar = line.slice(0)
++	  line = line.slice(1..-1)
++	  value += firstChar
+           stack.pop
+         else
+-          value << line.slice!(0)
++	  firstChar = line.slice(0)
++	  line = line.slice(1..-1)
++	  value += firstChar
+         end
+       end
+ 
+diff --git a/slim.gemspec b/slim.gemspec
+index adc7c84..4ddea9b 100644
+--- a/slim.gemspec
++++ b/slim.gemspec
+@@ -19,16 +19,6 @@ Gem::Specification.new do |s|
+   s.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
+   s.require_paths = %w(lib)
+ 
+-  s.add_runtime_dependency('temple', ['~> 0.3.0']) unless ENV['SLIM_USE_TEMPLE']
++  s.add_runtime_dependency('temple', ['= 0.3.0']) unless ENV['SLIM_USE_TEMPLE']
+   s.add_runtime_dependency('tilt', ['~> 1.2'])
+-
+-  s.add_development_dependency('rake', ['>= 0.8.7'])
+-  s.add_development_dependency('haml', ['>= 3.1.0'])
+-  s.add_development_dependency('sass', ['>= 3.1.0'])
+-  s.add_development_dependency('minitest', ['>= 0'])
+-  s.add_development_dependency('rcov', ['>= 0'])
+-  s.add_development_dependency('rdiscount', ['>= 0'])
+-  s.add_development_dependency('liquid', ['>= 0'])
+-  s.add_development_dependency('yard', ['>= 0'])
+-  s.add_development_dependency('creole', ['>= 0'])
+ end
 -- 
 2.10.0
 

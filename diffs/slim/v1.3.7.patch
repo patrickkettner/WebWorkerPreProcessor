@@ -1,15 +1,55 @@
-From 18cb3aaf8c7e00b029d40b5c86aab0fc5ef2fb87 Mon Sep 17 00:00:00 2001
+From 2a44ae08557c63dafda86c2bb59953cbc7455c95 Mon Sep 17 00:00:00 2001
 From: Patrick Kettner <patrickkettner@gmail.com>
-Date: Tue, 8 Nov 2016 14:33:05 -0800
+Date: Thu, 24 Nov 2016 12:06:31 -0800
 Subject: [PATCH] .
 
 ---
- lib/slim/engine.rb        |   2 +-
- lib/slim/interpolation.rb |   8 ++--
- lib/slim/parser.rb        | 110 +++++++++++++++++++++++-----------------------
- slim.gemspec              |   1 -
- 4 files changed, 61 insertions(+), 60 deletions(-)
+ lib/slim/embedded.rb          |   4 +-
+ lib/slim/end_inserter.rb      |   4 +-
+ lib/slim/engine.rb            |   2 +-
+ lib/slim/interpolation.rb     |  17 ++++--
+ lib/slim/logic_less/filter.rb |   2 +-
+ lib/slim/parser.rb            | 136 +++++++++++++++++++++---------------------
+ slim.gemspec                  |   3 +-
+ 7 files changed, 87 insertions(+), 81 deletions(-)
 
+diff --git a/lib/slim/embedded.rb b/lib/slim/embedded.rb
+index 2b311da..4533454 100644
+--- a/lib/slim/embedded.rb
++++ b/lib/slim/embedded.rb
+@@ -8,7 +8,7 @@ module Slim
+     end
+ 
+     def on_slim_interpolate(text)
+-      @collected << text
++      @collected += text
+       nil
+     end
+   end
+@@ -37,7 +37,7 @@ module Slim
+     end
+ 
+     def on_static(text)
+-      @collected << text
++      @collected += text
+       nil
+     end
+ 
+diff --git a/lib/slim/end_inserter.rb b/lib/slim/end_inserter.rb
+index d0f4242..0e48c99 100644
+--- a/lib/slim/end_inserter.rb
++++ b/lib/slim/end_inserter.rb
+@@ -10,8 +10,8 @@ module Slim
+   #
+   # @api private
+   class EndInserter < Filter
+-    ELSE_REGEX = /\A(else|elsif|when|rescue|ensure)\b/
+-    END_REGEX = /\Aend\b/
++    ELSE_REGEX = /^(else|elsif|when|rescue|ensure)\b/
++    END_REGEX = /^end\b/
+ 
+     # Handle multi expression `[:multi, *exps]`
+     #
 diff --git a/lib/slim/engine.rb b/lib/slim/engine.rb
 index 8bb90d0..5dd5649 100644
 --- a/lib/slim/engine.rb
@@ -24,34 +64,70 @@ index 8bb90d0..5dd5649 100644
    end
  end
 diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
-index 7bcf0e7..134d066 100644
+index 7bcf0e7..77c76c6 100644
 --- a/lib/slim/interpolation.rb
 +++ b/lib/slim/interpolation.rb
-@@ -14,16 +14,16 @@ module Slim
+@@ -12,23 +12,28 @@ module Slim
+       # Interpolate variables in text (#{variable}).
+       # Split the text into multiple dynamic and static parts.
        block = [:multi]
-       begin
+-      begin
++      loop do
          case string
 -        when /\A\\#\{/
-+	when /^\\#\{/
++        when /^\\#\{/
            # Escaped interpolation
            block << [:static, '#{']
            string = $'
 -        when /\A#\{/
-+	when /^#\{/
++        when /^#\{/
            # Interpolation
            string, code = parse_expression($')
 -          escape = code !~ /\A\{.*\}\Z/
-+	  escape = code !~ /^\{.*\}$/
++          escape = code !~ /^\{.*\}$/
            block << [:slim, :output, escape, escape ? code : code[1..-2], [:multi]]
 -        when /\A([#\\]|[^#\\]*)/
-+	when /^([#\\]|[^#\\]*)/
++        when /^([#\\]|[^#\\]*)/
            # Static text
            block << [:static, $&]
            string = $'
+         end
+-      end until string.empty?
++        if string.empty?
++          break
++        else
++          next
++        end
++      end
+       block
+     end
+ 
+diff --git a/lib/slim/logic_less/filter.rb b/lib/slim/logic_less/filter.rb
+index a51c6f0..0426375 100644
+--- a/lib/slim/logic_less/filter.rb
++++ b/lib/slim/logic_less/filter.rb
+@@ -40,7 +40,7 @@ module Slim
+     # Interpret control blocks as sections or inverted sections
+     def on_slim_control(name, content)
+       method =
+-        if name =~ /\A!\s*(.*)/
++	if name =~ /^!\s*(.*)/
+           name = $1
+           'inverted_section'
+         else
 diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
-index e79f29e..fb55d93 100644
+index e79f29e..b0a656a 100644
 --- a/lib/slim/parser.rb
 +++ b/lib/slim/parser.rb
+@@ -38,7 +38,7 @@ module Slim
+       super
+       tabsize = options[:tabsize]
+       if tabsize > 1
+-        @tab_re = /\G((?: {#{tabsize}})*) {0,#{tabsize-1}}\t/
++        @tab_re = /((?: {#{tabsize}})*) {0,#{tabsize-1}}\t/
+         @tab = '\1' + ' ' * tabsize
+       else
+         @tab_re = "\t"
 @@ -54,8 +54,8 @@ module Slim
            raise ArgumentError, 'You can only use special characters for attribute shortcuts' if k =~ /[\w-]/
          end
@@ -85,22 +161,24 @@ index e79f29e..fb55d93 100644
          { :tag => $1, :attr => $2 }
        else
          { :attr => v }
-@@ -103,14 +103,8 @@ module Slim
+@@ -102,16 +102,6 @@ module Slim
+ 
      # Set string encoding if option is set
      def set_encoding(s)
-       if options[:encoding] && s.respond_to?(:encoding)
+-      if options[:encoding] && s.respond_to?(:encoding)
 -        old_enc = s.encoding
-         s = s.dup if s.frozen?
+-        s = s.dup if s.frozen?
 -        s.force_encoding(options[:encoding])
-         # Fall back to old encoding if new encoding is invalid
+-        # Fall back to old encoding if new encoding is invalid
 -        unless s.valid_encoding?
 -          s.force_encoding(old_enc)
 -          s.force_encoding(Encoding::BINARY) unless s.valid_encoding?
 -        end
-       end
+-      end
        s
      end
-@@ -119,12 +113,12 @@ module Slim
+ 
+@@ -119,12 +109,12 @@ module Slim
      def remove_bom(s)
        if s.respond_to?(:encoding)
          if s.encoding.name =~ /^UTF-(8|16|32)(BE|LE)?/
@@ -115,7 +193,7 @@ index e79f29e..fb55d93 100644
        end
      end
  
-@@ -168,11 +162,11 @@ module Slim
+@@ -168,11 +158,11 @@ module Slim
      def get_indent(line)
        # Figure out the indentation. Kinda ugly/slow way to support tabs,
        # but remember that this is only done at parsing time.
@@ -129,7 +207,7 @@ index e79f29e..fb55d93 100644
          @stacks.last << [:newline]
          return
        end
-@@ -180,7 +174,7 @@ module Slim
+@@ -180,7 +170,7 @@ module Slim
        indent = get_indent(@line)
  
        # Remove the indentation
@@ -138,7 +216,7 @@ index e79f29e..fb55d93 100644
  
        # If there's more stacks than indents, it means that the previous
        # line is expecting this line to be indented.
-@@ -219,48 +213,48 @@ module Slim
+@@ -219,48 +209,50 @@ module Slim
  
      def parse_line_indicators
        case @line
@@ -185,9 +263,13 @@ index e79f29e..fb55d93 100644
 -        @line =~ /\A=(=?)('?)/
 +        @line =~ /^=(=?)('?)/
          @line = $'
++        a = $1 || ''
++        b = $2 || ''
          block = [:multi]
-         @stacks.last << [:slim, :output, $1.empty?, parse_broken_line, block]
-         @stacks.last << [:static, ' '] unless $2.empty?
+-        @stacks.last << [:slim, :output, $1.empty?, parse_broken_line, block]
+-        @stacks.last << [:static, ' '] unless $2.empty?
++        @stacks.last << [:slim, :output, a.empty?, parse_broken_line, block]
++        @stacks.last << [:static, ' '] unless b.empty?
          @stacks << block
 -      when /\A(\w+):\s*\Z/
 +      when /^(\w+):\s*$/
@@ -198,7 +280,7 @@ index e79f29e..fb55d93 100644
          # Found doctype declaration
          @stacks.last << [:html, :doctype, $'.strip]
        when @tag_regex
-@@ -274,7 +268,7 @@ module Slim
+@@ -274,7 +266,7 @@ module Slim
      end
  
      def parse_comment_block
@@ -207,7 +289,7 @@ index e79f29e..fb55d93 100644
          next_line
          @stacks.last << [:newline]
        end
-@@ -290,7 +284,7 @@ module Slim
+@@ -290,7 +282,7 @@ module Slim
  
        empty_lines = 0
        until @lines.empty?
@@ -216,7 +298,7 @@ index e79f29e..fb55d93 100644
            next_line
            result << [:newline]
            empty_lines += 1 if text_indent
-@@ -304,7 +298,7 @@ module Slim
+@@ -304,7 +296,7 @@ module Slim
            end
  
            next_line
@@ -225,16 +307,18 @@ index e79f29e..fb55d93 100644
  
            # The text block lines must be at least indented
            # as deep as the first line.
-@@ -327,7 +321,7 @@ module Slim
+@@ -327,24 +319,26 @@ module Slim
  
      def parse_broken_line
        broken_line = @line.strip
 -      while broken_line =~ /[,\\]\Z/
 +      while broken_line =~ /[,\\]$/
          expect_next_line
-         broken_line << "\n" << @line
+-        broken_line << "\n" << @line
++        broken_line += "\n" + @line
        end
-@@ -336,15 +330,17 @@ module Slim
+       broken_line
+     end
  
      def parse_tag(tag)
        if @tag_shortcut[tag]
@@ -255,7 +339,7 @@ index e79f29e..fb55d93 100644
          # Block expansion
          @line = $'
          (@line =~ @tag_regex) || syntax_error!('Expected tag')
-@@ -355,23 +351,23 @@ module Slim
+@@ -355,23 +349,25 @@ module Slim
          @stacks << content
          parse_tag($&)
          @stacks.delete_at(i)
@@ -263,9 +347,13 @@ index e79f29e..fb55d93 100644
 +      when /^\s*=(=?)('?)/
          # Handle output code
          @line = $'
++        a = $1 || ''
++        b = $2 || ''
          block = [:multi]
-         tag << [:slim, :output, $1 != '=', parse_broken_line, block]
-         @stacks.last << [:static, ' '] unless $2.empty?
+-        tag << [:slim, :output, $1 != '=', parse_broken_line, block]
+-        @stacks.last << [:static, ' '] unless $2.empty?
++        tag << [:slim, :output, a != '=', parse_broken_line, block]
++        @stacks.last << [:static, ' '] unless b.empty?
          @stacks << block
 -      when /\A\s*\/\s*/
 +      when /^\s*\/\s*/
@@ -324,7 +412,7 @@ index e79f29e..fb55d93 100644
              syntax_error!('Expected attribute') unless @line.empty?
  
              # Attributes span multiple lines
-@@ -466,17 +462,17 @@ module Slim
+@@ -466,18 +462,18 @@ module Slim
          end
        end
  
@@ -341,10 +429,12 @@ index e79f29e..fb55d93 100644
  
        until @line.empty? || (count == 0 && @line =~ end_regex)
 -        if @line =~ /\A[,\\]\Z/
+-          code << @line << "\n"
 +        if @line =~ /^[,\\]$/
-           code << @line << "\n"
++          code += @line + "\n"
            expect_next_line
          else
+           if count > 0
 @@ -490,7 +486,9 @@ module Slim
              count = 1
              delimiter, close_delimiter = $&, DELIMITERS[$&]
@@ -356,15 +446,17 @@ index e79f29e..fb55d93 100644
          end
        end
        syntax_error!("Expected closing delimiter #{close_delimiter}") if count != 0
-@@ -501,7 +499,7 @@ module Slim
+@@ -501,8 +499,8 @@ module Slim
        value, count = '', 0
  
        until @line.empty? || (count == 0 && @line[0] == quote[0])
 -        if @line =~ /\A\\\Z/
+-          value << ' '
 +        if @line =~ /^\\$/
-           value << ' '
++          value += ' '
            expect_next_line
          else
+           if count > 0
 @@ -511,17 +509,21 @@ module Slim
              elsif @line[0] == ?}
                count -= 1
@@ -391,15 +483,26 @@ index e79f29e..fb55d93 100644
  
        value
      end
+@@ -534,7 +536,7 @@ module Slim
+ 
+     def expect_next_line
+       next_line || syntax_error!('Unexpected end of file')
+-      @line.strip!
++      @line = @line.strip
+     end
+   end
+ end
 diff --git a/slim.gemspec b/slim.gemspec
-index 1c298a8..ae149b4 100644
+index 1c298a8..c3eb9da 100644
 --- a/slim.gemspec
 +++ b/slim.gemspec
-@@ -18,5 +18,4 @@ Gem::Specification.new do |s|
+@@ -17,6 +17,5 @@ Gem::Specification.new do |s|
+   s.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
    s.require_paths = %w(lib)
  
-   s.add_runtime_dependency('temple', ['~> 0.6.3'])
+-  s.add_runtime_dependency('temple', ['~> 0.6.3'])
 -  s.add_runtime_dependency('tilt', ['~> 1.3.3'])
++  s.add_runtime_dependency('temple', ['~> 0.6.3', '< 0.6.5'])
  end
 -- 
 2.10.0
