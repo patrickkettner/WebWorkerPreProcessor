@@ -16,3 +16,6 @@
 [submodule "lib/haml"]
 	path = lib/haml
 	url = https://github.com/haml/haml
+[submodule "lib/livescript"]
+	path = lib/livescript
+	url = https://github.com/gkz/LiveScript

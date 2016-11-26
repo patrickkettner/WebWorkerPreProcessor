@@ -50,6 +50,7 @@ module.exports = function(grunt) {
       return tag
     })
     .filter(tag => !!tag)
+      .reverse()
     .forEach(tag => {
       grunt.task.run([`build:${target}:${tag}`])
     })
@@ -72,6 +73,7 @@ module.exports = function(grunt) {
     },
     clean: {
       autoprefixer: ['./dist/autoprefixer-*', './lib/autoprefixer/node_modules', './test/autoprefixer-suite.js'],
+      livescript: ['./dist/livescript-*', './lib/livescript/node_modules'],
       stylus: ['./dist/stylus-*', './lib/stylus/node_modules'],
       less: ['./dist/less-*', './lib/less/node_modules'],
       jade: ['./dist/jade-*', './lib/pug/node_modules'],
@@ -121,6 +123,11 @@ module.exports = function(grunt) {
           from: '1.11.0',
         },
       },
+      livescript: {
+        options: {
+          cwd: './lib/livescript'
+        },
+      },
       stylus: {
         options: {
           cwd: './lib/stylus',
@@ -147,6 +154,7 @@ module.exports = function(grunt) {
     },
     gitpull: {
       autoprefixer: { options: { cwd: './lib/autoprefixer' } },
+      livescript: { options: { cwd: './lib/livescript' } },
       stylus: { options: { cwd: './lib/stylus' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug', branch: 'master'} },
@@ -156,6 +164,7 @@ module.exports = function(grunt) {
     gitcheckout: {
       options: { branch: '<%= grunt.config.get("currentTag") %>' },
       autoprefixer: { options: { cwd: './lib/autoprefixer' } },
+      livescript: { options: { cwd: './lib/livescript' } },
       stylus: { options: { cwd: './lib/stylus' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug' } },
@@ -172,6 +181,7 @@ module.exports = function(grunt) {
     },
     gitreset: {
       options: { mode: 'hard' },
+      livescript: { options: { cwd: './lib/livescript' } },
       stylus: { options: { cwd: './lib/stylus' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug' } },
@@ -197,14 +207,16 @@ module.exports = function(grunt) {
     },
 
     update: {
-      stylus: { defaultBranch: 'dev' },
-      less: { defaultBranch: '3.x' },
-      jade: { defaultBranch: '1.11.0' },
-      pug: { defaultBranch: 'master' },
       autoprefixer: { defaultBranch: 'master' },
-      slim: {defaultBranch: 'master'}
+      livescript: { defaultBranch: 'master' },
+      jade: { defaultBranch: '1.11.0' },
+      stylus: { defaultBranch: 'dev' },
+      pug: { defaultBranch: 'master' },
+      slim: {defaultBranch: 'master'},
+      less: { defaultBranch: '3.x' }
     },
     webpack: {
+      livescript: {},
       stylus: {},
       less: {},
       jade: {},
@@ -240,6 +252,7 @@ module.exports = function(grunt) {
         '!./test/less/**/*Processor*/*.less'
       ],
       slim: [],
+      livescript: [],
       stylus: [ './test/cases/**/*.styl', './test/converter/**/*.styl' ],
     }
   });
