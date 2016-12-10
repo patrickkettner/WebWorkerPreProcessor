@@ -2,6 +2,11 @@ var spawn = require('child_process').spawn;
 
 module.exports = function(grunt) {
   'use strict';
+  var rubyLibs = [
+    'haml',
+    'sass',
+    'slim'
+  ]
 
   var webpackCallback = function(done) {
     return function(err, stats) {
@@ -28,9 +33,7 @@ module.exports = function(grunt) {
   }
 
   function isRubyLib(lib) {
-    return [
-      'slim'
-    ].indexOf(lib) > -1
+    return rubyLibs.indexOf(lib) > -1
   }
 
   function filterGitLog(logs) {
@@ -56,20 +59,26 @@ module.exports = function(grunt) {
     })
   }
 
+    function opalPath(l) {
+      return {
+        'OPAL_LOAD_PATH': () => `${__dirname}/lib/${l}/lib/:${
+            grunt.file.expand([
+              './ruby/*/gems/opal*/*',
+              './ruby/*/gems/*/lib/',
+              './ruby/*/bundler/gems/*/',
+              './ruby/*/bundler/gems/*/lib/'
+            ]).join(':')}`
+      }
+    }
+
+
   // load grunt dependencies
   require('load-grunt-tasks')(grunt);
 
   grunt.initConfig({
     env: {
-      slim: {
-        'OPAL_LOAD_PATH': () => `${__dirname}/lib/slim/lib/:${
-          grunt.file.expand([
-            './ruby/*/gems/opal*/*',
-            './ruby/*/gems/*/lib/',
-            './ruby/*/bundler/gems/*/',
-            './ruby/*/bundler/gems/*/lib/'
-          ]).join(':')}`
-      }
+      slim: opalPath('slim'),
+      sass: opalPath('sass')
     },
     clean: {
       autoprefixer: ['./dist/autoprefixer-*', './lib/autoprefixer/node_modules', './test/autoprefixer-suite.js'],
@@ -78,18 +87,21 @@ module.exports = function(grunt) {
       less: ['./dist/less-*', './lib/less/node_modules'],
       jade: ['./dist/jade-*', './lib/pug/node_modules'],
       pug: ['./dist/pug-*', './lib/pug/node_modules'],
+      haml: ['./dist/haml-*', './lib/haml/.bundle'],
       slim: ['./dist/slim-*', './lib/slim/.bundle'],
+      sass: ['./dist/sass-*', './lib/sass/.bundle'],
       RUBY: ['./Gemfile.lock', './ruby']
     },
     karma: {
       options: {
         files: [
-          {pattern: 'dist/*.js', included: false},
+          {pattern: 'dist/*', included: false},
           {pattern: 'lib/**/*', included: false},
-          './lib/js/semver.min.js',
-          './node_modules/jquery/dist/jquery.min.js',
-          './node_modules/expect.js/index.js',
+          './lib/js/sinon.js',
           './test/currentTag.js',
+          './lib/js/semver.min.js',
+          './node_modules/expect.js/index.js',
+          './node_modules/jquery/dist/jquery.min.js',
           './test/<%= grunt.config.get("lib") %>-suite.js'
         ]
       },
@@ -106,8 +118,6 @@ module.exports = function(grunt) {
     gitlog: {
       options: {
         pretty: '{"tag": "%D", "hash": "%H"} --grunt-gitlog-separator--',
-        tags: true,
-        noWalk: true,
         callback: filterGitLog
       },
       jade: {
@@ -121,6 +131,12 @@ module.exports = function(grunt) {
         options: {
           cwd: './lib/pug',
           from: '1.11.0',
+        },
+      },
+      haml: {
+        options: {
+          cwd: './lib/haml',
+          from: '0.4.0'
         },
       },
       livescript: {
@@ -142,7 +158,15 @@ module.exports = function(grunt) {
       },
       slim: {
         options: {
+          tags: true,
+          noWalk: true,
           cwd: './lib/slim'
+        },
+      },
+      sass: {
+        options: {
+          cwd: './lib/sass',
+          from: '3.1.0'
         },
       },
       less: {
@@ -156,9 +180,11 @@ module.exports = function(grunt) {
       autoprefixer: { options: { cwd: './lib/autoprefixer' } },
       livescript: { options: { cwd: './lib/livescript' } },
       stylus: { options: { cwd: './lib/stylus' } },
+      haml: { options: { cwd: './lib/haml' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug', branch: 'master'} },
       slim: { options: { cwd: './lib/slim' } },
+      sass: { options: { cwd: './lib/sass' } },
       pug: { options: { cwd: './lib/pug' } }
     },
     gitcheckout: {
@@ -166,25 +192,28 @@ module.exports = function(grunt) {
       autoprefixer: { options: { cwd: './lib/autoprefixer' } },
       livescript: { options: { cwd: './lib/livescript' } },
       stylus: { options: { cwd: './lib/stylus' } },
+      haml: { options: { cwd: './lib/haml' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug' } },
       slim: { options: { cwd: './lib/slim' } },
+      sass: { options: { cwd: './lib/sass' } },
       pug: { options: { cwd: './lib/pug' } }
     },
-    gitapply: {
-      slim: {
-        options: {
-          cwd: './lib/slim',
-          patchFiles: '../../diffs/<%= grunt.config.get("lib") %>/<%= grunt.config.get("currentTag") %>.patch'
-        }
+    gitapply: { options: {
+        patchFiles: '../../diffs/<%= grunt.config.get("lib") %>/<%= grunt.config.get("currentTag") %>.patch',
+        whitespace: 'fix'
       },
+      slim: { options: { cwd: './lib/slim' } },
+      sass: { options: { cwd: './lib/sass' } }
     },
     gitreset: {
       options: { mode: 'hard' },
       livescript: { options: { cwd: './lib/livescript' } },
       stylus: { options: { cwd: './lib/stylus' } },
+      haml: { options: { cwd: './lib/haml' } },
       less: { options: { cwd: './lib/less' } },
       jade: { options: { cwd: './lib/pug' } },
+      sass: { options: { cwd: './lib/sass' } },
       slim: { options: { cwd: './lib/slim' } },
       pug: { options: { cwd: './lib/pug' } }
     },
@@ -212,6 +241,8 @@ module.exports = function(grunt) {
       jade: { defaultBranch: '1.11.0' },
       stylus: { defaultBranch: 'dev' },
       pug: { defaultBranch: 'master' },
+      haml: {defaultBranch: 'master'},
+      sass: {defaultBranch: 'stable'},
       slim: {defaultBranch: 'master'},
       less: { defaultBranch: '3.x' }
     },
@@ -220,6 +251,7 @@ module.exports = function(grunt) {
       stylus: {},
       less: {},
       jade: {},
+      sass: {},
       slim: {},
       pug: {},
     },
@@ -251,7 +283,15 @@ module.exports = function(grunt) {
         '!./test/**/javascript-error.less',
         '!./test/less/**/*Processor*/*.less'
       ],
+      sass: [
+        './test/sass/**/*.sass',
+        '!./test/sass/**/_*.sass',
+        '!./test/sass/**/*bork*.sass',
+        '!./test/sass/**/*_imported.sass',
+        '!./test/sass/templates/subdir/**/*.sass',
+      ],
       slim: [],
+      haml: [],
       livescript: [],
       stylus: [ './test/cases/**/*.styl', './test/converter/**/*.styl' ],
     }
@@ -294,7 +334,7 @@ module.exports = function(grunt) {
     var lib = this.target;
 
     // pug is the new name for jade, so they share a repo. So for loading files
-    // form said repo, we need to use the latest name - pug.
+    // from said repo, we need to use the latest name - pug.
     var libPath = (lib === 'jade') ? 'pug' : lib;
     grunt.config.set('libPath', libPath);
 
@@ -338,19 +378,19 @@ module.exports = function(grunt) {
   grunt.registerTask('prepareLib', function(lib, tag) {
 
     if (isRubyLib(lib)) {
-      grunt.task.run(['gitapply', 'clean:RUBY', 'bundlerInstall', `env:${lib}`])
+      grunt.task.run([`gitapply:${lib}`, 'clean:RUBY', `bundlerInstall:${lib}`, `env:${lib}`])
     } else {
       grunt.task.run(['npm-command:update', 'npm-command:prune']);
     }
   })
 
 
-  grunt.registerTask('bundlerInstall', function() {
+  grunt.registerTask('bundlerInstall', function(lib) {
     var done = this.async()
 
     grunt.util.spawn({
       cmd: 'bundler',
-      args: ['install']
+      args: ['install', '--with', lib, '--without'].concat(rubyLibs.filter( l => l != lib))
     }, function(err, result) {
       if (err) {
         grunt.log.error(result)

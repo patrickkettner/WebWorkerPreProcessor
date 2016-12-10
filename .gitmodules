@@ -19,3 +19,6 @@
 [submodule "lib/livescript"]
 	path = lib/livescript
 	url = https://github.com/gkz/LiveScript
+[submodule "lib/sass"]
+	path = lib/sass
+	url = https://github.com/sass/sass

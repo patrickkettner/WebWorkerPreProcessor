@@ -1,3 +1,5 @@
 ---
 BUNDLE_PATH: "."
 BUNDLE_DISABLE_SHARED_GEMS: "true"
+BUNDLE_WITHOUT: "haml:slim"
+BUNDLE_WITH: "sass"

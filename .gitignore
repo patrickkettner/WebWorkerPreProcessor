@@ -2,3 +2,4 @@ test/currentTag.js
 base
 /ruby
 /Gemfile.lock
+/.sass-cache

@@ -1,5 +1,5 @@
 
-        window.__testFiles=[];
-        window.__libVersion="v2.0.0";
-        window.__workerPath="/base/dist/slim-v2.0.0.min.js"
+        window.__testFiles=["/base/lib/sass/test/sass/more_templates/more_import","/base/lib/sass/test/sass/more_templates/more1","/base/lib/sass/test/sass/templates/alt","/base/lib/sass/test/sass/templates/basic","/base/lib/sass/test/sass/templates/compact","/base/lib/sass/test/sass/templates/complex","/base/lib/sass/test/sass/templates/compressed","/base/lib/sass/test/sass/templates/expanded","/base/lib/sass/test/sass/templates/if","/base/lib/sass/test/sass/templates/import_charset_1_8","/base/lib/sass/test/sass/templates/import_charset_ibm866","/base/lib/sass/test/sass/templates/import_charset","/base/lib/sass/test/sass/templates/import","/base/lib/sass/test/sass/templates/importee","/base/lib/sass/test/sass/templates/line_numbers","/base/lib/sass/test/sass/templates/mixins","/base/lib/sass/test/sass/templates/multiline","/base/lib/sass/test/sass/templates/nested_import","/base/lib/sass/test/sass/templates/nested","/base/lib/sass/test/sass/templates/options","/base/lib/sass/test/sass/templates/parent_ref","/base/lib/sass/test/sass/templates/script","/base/lib/sass/test/sass/templates/units","/base/lib/sass/test/sass/templates/warn"];
+        window.__libVersion="3.1.0";
+        window.__workerPath="/base/dist/sass-3.1.0.min.js"
       
