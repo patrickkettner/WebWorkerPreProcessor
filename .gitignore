@@ -3,3 +3,4 @@ base
 /ruby
 /Gemfile.lock
 /.sass-cache
+/.bundle
