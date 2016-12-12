@@ -25,15 +25,15 @@ describe('sass', function() {
       sass.postMessage(JSON.stringify(data));
     };
 
-    func_parse = function(val) {
-     return 'Opal.Sass.$$scope.Script.$$scope.Parser.$parse("' + val + '", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).$to_s()';
+    func_parse = function(val, opts) {
+      opts = opts || {}
+     return 'Opal.Sass.$$scope.Script.$$scope.Parser.$parse("' + val + '", 0, 0,Opal.hash2(' + JSON.stringify(Object.keys(opts)) + ',' + JSON.stringify(opts) + ')).$perform(Opal.Sass.$$scope.Environment.$new()).$to_s()';
     }
 
     eval_equal = function (to_eval, expected, opts, done) {
       opts = opts || {}
       to_eval += '===' + expected
 
-      console.log(to_eval)
       sassBuilder({eval: to_eval, options: opts}, function(result) {
           expect(result.err).to.be(undefined)
           expect(result.css).to.be(true)
@@ -42,7 +42,6 @@ describe('sass', function() {
     }
 
     eval_err = function(to_eval, err_text, opts, done) {
-      console.log(to_eval)
       sassBuilder({eval: to_eval}, function(result) {
           expect(JSON.parse(result.err).message).to.contain(err_text)
           expect(result.css).to.be(undefined)
@@ -2885,8 +2884,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    //TODO figure out why this times out
-    it.skip('test_nested_extender_alternates_parents', function(done) {
+    it('test_nested_extender_alternates_parents', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L977-L985
       // v3.1.0
 
@@ -2895,8 +2893,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    //TODO figure out why this times out
-    it.skip('test_nested_extender_unifies_identical_parents', function(done) {
+    it('test_nested_extender_unifies_identical_parents', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L987-L995
       // v3.1.0
 
@@ -2905,8 +2902,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_unifies_common_substring', function(done) {
+    it('test_nested_extender_unifies_common_substring', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L997-L1005
       // v3.1.0
 
@@ -2915,8 +2911,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_unifies_common_subseq', function(done) {
+    it('test_nested_extender_unifies_common_subseq', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1007-L1015
       // v3.1.0
 
@@ -2925,8 +2920,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_chooses_first_subseq', function(done) {
+    it('test_nested_extender_chooses_first_subseq', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1017-L1025
       // v3.1.0
 
@@ -2935,8 +2929,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_counts_extended_subselectors', function(done) {
+    it('test_nested_extender_counts_extended_subselectors', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1027-L1035
       // v3.1.0
 
@@ -2945,8 +2938,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_counts_extended_superselectors', function(done) {
+    it('test_nested_extender_counts_extended_superselectors', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1037-L1045
       // v3.1.0
 
@@ -2955,8 +2947,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_with_child_selector', function(done) {
+    it('test_nested_extender_with_child_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1047-L1055
       // v3.1.0
 
@@ -2965,8 +2956,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_finds_common_selectors_around_child_selector', function(done) {
+    it('test_nested_extender_finds_common_selectors_around_child_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1057-L1073
       // v3.1.0
 
@@ -2981,8 +2971,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, second)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_doesnt_find_common_selectors_around_adjacent_sibling_selector', function(done) {
+    it('test_nested_extender_doesnt_find_common_selectors_around_adjacent_sibling_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1075-L1099
       // v3.1.0
 
@@ -3003,8 +2992,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, second)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_doesnt_find_common_selectors_around_sibling_selector', function(done) {
+    it('test_nested_extender_doesnt_find_common_selectors_around_sibling_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1101-L1125
       // v3.1.0
 
@@ -3025,8 +3013,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, second)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_with_early_child_selectors_doesnt_subseq_them', function(done) {
+    it('test_nested_extender_with_early_child_selectors_doesnt_subseq_them', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1127-L1143
       // v3.1.0
 
@@ -3041,8 +3028,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, second)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_with_child_selector_unifies', function(done) {
+    it('test_nested_extender_with_child_selector_unifies', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1145-L1153
       // v3.1.0
 
@@ -3051,16 +3037,14 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_with_trailing_child_selector', function(done) {
+    it('test_nested_extender_with_trailing_child_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1155-L1159
       // v3.1.0
 
-      err_message("bar > {@extend .baz}", "bar > can't extend: invalid selector", {syntax: 'scss'}, done)
+      err_message("bar > {@extend .baz}", "can't extend: invalid selector", {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_with_sibling_selector', function(done) {
+    it('test_nested_extender_with_sibling_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1161-L1169
       // v3.1.0
 
@@ -3069,8 +3053,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_with_hacky_selector', function(done) {
+    it('test_nested_extender_with_hacky_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1171-L1187
       // v3.1.0
 
@@ -3085,8 +3068,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, second)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_merges_with_same_selector', function(done) {
+    it('test_nested_extender_merges_with_same_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1189-L1198
       // v3.1.0
 
@@ -3095,8 +3077,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'scss'}, done)
     })
 
-    // TODO figure out why this times out
-    it.skip('test_nested_extender_with_child_selector_merges_with_same_selector', function(done) {
+    it('test_nested_extender_with_child_selector_merges_with_same_selector', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/extend_test.rb#L1200-L1208
       // v3.1.0
 
@@ -3660,8 +3641,7 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass'}, done)
     })
 
-    //TODO fiure out why this is failing
-    it.skip('test_loud_comments_with_starred_lines', function(done) {
+    it('test_loud_comments_with_starred_lines', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1458-L1468
       // v3.1.0
 
@@ -3670,8 +3650,7 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass'}, done)
     })
 
-    //TODO fiure out why this is failing
-    it.skip('test_loud_comments_with_no_space_after_starred_lines', function(done) {
+    it('test_loud_comments_with_no_space_after_starred_lines', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1470-L1480
       // v3.1.0
 
@@ -3707,8 +3686,7 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass'}, done)
     })
 
-    //TODO figure out why this fails
-    it.skip('test_loud_comment_with_separate_line_close', function(done) {
+    it('test_loud_comment_with_separate_line_close', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1524-L1536
       // v3.1.0
 
@@ -3717,8 +3695,7 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass'}, done)
     })
 
-    //TODO figure out why this fails
-    it.skip('test_loud_comment_in_compressed_mode', function(done) {
+    it('test_loud_comment_in_compressed_mode', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1538-L1550
       // v3.1.0
 
@@ -3803,18 +3780,16 @@ describe('sass', function() {
         sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
     })
 
-    //TODO figure out why this hangs
-    it.skip('test_root_level_pseudo_class_with_new_properties', function(done) {
+    it('test_root_level_pseudo_class_with_new_properties', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1630-L1638
       // v3.1.0
 
       var css = ":focus {\n  outline: 0; }\n";
       var scss = ":focus\n  outline: 0\n";
-        equal(scss, css, {syntax: 'sass'}, done)
+        equal(scss, css, {syntax: 'sass', property_syntax: 'new'}, done)
     })
 
-    //TODO figure out why this hangs
-    it.skip('test_pseudo_class_with_new_properties', function(done) {
+    it('test_pseudo_class_with_new_properties', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1640-L1649
       // v3.1.0
 
@@ -3877,8 +3852,7 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass'}, done)
     })
 
-    //TODO figure out why this fails
-    it.skip('test_interpolation_unquotes_strings', function(done) {
+    it('test_interpolation_unquotes_strings', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1743-L1759
       // v3.1.0
 
@@ -3902,8 +3876,7 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass'}, done)
     })
 
-    //TODO figure out why this fails
-    it.skip('test_interpolation_doesnt_deep_unquote_strings', function(done) {
+    it('test_interpolation_doesnt_deep_unquote_strings', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1773-L1781
       // v3.1.0
 
@@ -4086,8 +4059,7 @@ describe('sass', function() {
       equal(scss, css, {syntax: 'sass'}, done)
     });
 
-    //TODO figure out why this fails
-    it.skip('test_empty_line_comment', function(done) {
+    it('test_empty_line_comment', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L2097-L2108
       // v3.1.0
 
@@ -5304,6 +5276,534 @@ describe('sass', function() {
       // v3.1.0
 
       eval_err(func_parse("rgb($red: 255, $green: 255)"), "Function rgb requires an argument named $blue", {}, done);
+    });
+
+    it('test_color_checks_input', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L15-L18
+      // v3.1.0
+
+      eval_err(func_parse("rgb($red: 255, $green: 255)"), "Function rgb requires an argument named $blue", {}, done);
+    });
+
+    it('test_color_checks_input', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L15-L18
+      // v3.1.0
+
+      function b() {eval_err('Opal.Sass.$$scope.Script.$$scope.Color.$new( [256, 2, 3] )', "Red value must be between 0 and 255", {}, done)}
+      eval_err('Opal.Sass.$$scope.Script.$$scope.Color.$new( [1, 2, -1] )', "Blue value must be between 0 and 255", {}, b);
+    });
+
+    it('test_color_checks_rgba_input', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L20-L23
+      // v3.1.0
+
+      function b() {eval_err('Opal.Sass.$$scope.Script.$$scope.Color.$new( [1, 2, 3, 1.1] )', "Alpha channel must be between 0 and 1", {}, done)}
+      eval_err('Opal.Sass.$$scope.Script.$$scope.Color.$new( [1, 2, 3, -0.1] )', "Alpha channel must be between 0 and 1", {}, b);
+    });
+
+    it('test_string_escapes', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L25-L35
+      // v3.1.0
+
+      function n() { eval_equal(func_parse("\\\"'\\\""), '"\\\"\'\\\""', {}, done) }
+      function m() { eval_equal(func_parse("\\\"\\\\\\\\\\\""), "\'\\\"\\\\\\\\\\\"\'" , {}, n) }
+      function l() { eval_equal(func_parse("\\\"\\\\\\\"\\\""), '"\'\\\"\'"', {}, m) }
+      function k() { eval_equal(func_parse("\\\"\\\\02fa\\\""), '"\\\"\\\\02fa\\\""', {}, l) }
+      function j() { eval_equal(func_parse("\'\\\\'\'"), '"\\\"\'\\\""', {}, k) }
+      function i() { eval_equal(func_parse("\'\\\"\'"), '"\'\\\"\'"', {}, j) }
+      function h() { eval_equal(func_parse("\\\\\\\\"), '"\\\\\\\\"', {}, i) }
+      eval_equal(func_parse("\\\\02fa"), '"\\\\02fa"', {}, h)
+    });
+
+    it('test_string_interpolation', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L37-L41
+      // v3.1.0
+
+      function c() { eval_equal(func_parse("foo#{1 + 1}bar"), '"foo2bar"', {}, done) }
+      function b() { eval_equal(func_parse("foo#{1 + 1}bar"), '"foo2bar"', {}, c)}
+      eval_equal(func_parse("foo#{1 + \\\"bar#{2 + 3}baz\\\" + 4}bang"), '"foo1bar5baz4bang"', {}, b)
+    });
+
+    it('test_color_names', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L43-L47
+      // v3.1.0
+
+      function c() { eval_equal(func_parse("white"), '"white"', {}, done) }
+      function b() { eval_equal(func_parse("#ffffff"), '"white"', {}, c)}
+      eval_equal(func_parse("white - #000001"), '"#fffffe"', {}, b)
+    });
+
+    it('test_rgba_color_literals', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L49-L60
+      // v3.1.0
+
+      function h() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("rgba(1, 2, 3, 0.75)", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).$eq(Opal.Sass.$$scope.Script.$$scope.Color.$new([1, 2, 3, 0.75])).value', 'true', {}, done)}
+      function g() { eval_equal(func_parse("rgba(1, 2, 3, 0.75)"), '"rgba(1, 2, 3, 0.75)"', {}, h) }
+      function f() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("rgba(1, 2, 3, 0)", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).$eq(Opal.Sass.$$scope.Script.$$scope.Color.$new([1, 2, 3, 0])).value', 'true', {}, g)}
+      function e() { eval_equal(func_parse("rgba(1, 2, 3, 0)"), '"rgba(1, 2, 3, 0)"', {}, f) }
+      function d() { eval_equal(func_parse("rgba(1, 2, 3, 1)"), 'Opal.Sass.$$scope.Script.$$scope.Color.$new([1, 2, 3]).$inspect()', {}, e) }
+      function c() { eval_equal(func_parse("rgba(1, 2, 3, 1)"), 'Opal.Sass.$$scope.Script.$$scope.Color.$new([1, 2, 3, 1]).$inspect()', {}, d) }
+      function b() { eval_equal(func_parse("rgba(1, 2, 3, 1)"), '"#010203"', {}, c)}
+      eval_equal(func_parse("rgba(255, 255, 255, 1)"), '"white"', {}, b)
+    });
+
+    it('test_color_names', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L43-L47
+      // v3.1.0
+
+      function e() { eval_equal(func_parse("rgba(1, 1, 2, 0.35) * rgba(50, 50, 50, 0.35)"), '"rgba(50, 50, 100, 0.35)"', {}, done) }
+      function d() { eval_equal(func_parse("rgba(2, 2, 2, 0.25) + rgba(50, 50, 50, 0.25)"), '"rgba(52, 52, 52, 0.25)"', {}, e) }
+      function c() {eval_err(func_parse('rgba(1, 2, 3, 0.15) + rgba(50, 50, 50, 0.75)'), "Alpha channels must be equal: rgba(1, 2, 3, 0.15) + rgba(50, 50, 50, 0.75)", {}, d)}
+      function b() {eval_err(func_parse('#123456 * rgba(50, 50, 50, 0.75)'), "Alpha channels must be equal: #123456 * rgba(50, 50, 50, 0.75)", {}, c)}
+      eval_err(func_parse('rgba(50, 50, 50, 0.75) / #123456'), "Alpha channels must be equal: rgba(50, 50, 50, 0.75) / #123456", {}, b);
+    });
+
+    it('test_color_names', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L77-L80
+      // v3.1.0
+
+      function b() { eval_equal(func_parse("rgba(50, 50, 50, 0.75) - 1"), '"rgba(49, 49, 49, 0.75)"', {}, done) }
+      eval_equal(func_parse("rgba(50, 50, 50, 0.75) * 2"), '"rgba(100, 100, 100, 0.75)"', {}, b)
+    });
+
+    it('test_rgba_rounding', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L82-L84
+      // v3.1.0
+
+      eval_equal(func_parse("rgba(10.0, 1.23456789, 0.0, 0.1234567)"), '"rgba(10, 1, 0, 0.123)"', {}, done)
+    });
+
+    it('test_compressed_colors', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L86-L96
+      // v3.1.0
+
+      function o() {eval_equal(func_parse("This color is #{ white }", {style: 'compressed'}), '"This color is #fff"', {}, done)}
+      function n() { eval_equal(func_parse("rgba(1, 2, 3, 0.5)", {style: 'compressed'}), '"rgba(1,2,3,0.5)"', {}, o) }
+      function m() { eval_equal(func_parse("#112233", {style: 'compressed'}), '"#123"', {}, n) }
+      function l() { eval_equal(func_parse("black", {style: 'compressed'}), '"#000"', {}, m) }
+      function k() { eval_equal(func_parse("#f00", {style: 'compressed'}), '"red"', {}, l) }
+      function j() { eval_equal(func_parse("#00f", {style: 'compressed'}), '"blue"', {}, k) }
+      function i() { eval_equal(func_parse("#000080", {style: 'compressed'}), '"navy"', {}, j) }
+      function h() { eval_equal(func_parse("#000080 white", {style: 'compressed'}), '"navy #fff"', {}, i) }
+      eval_equal(func_parse("#123456", {style: 'compressed'}), '"#123456"', {}, h)
+    });
+
+    it('test_compressed_comma', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L98-L101
+      // v3.1.0
+
+      eval_equal(func_parse("foo, #baf, #f00", {style: 'compressed'}), '"foo,#baf,red"', {}, done)
+    });
+
+    it('test_implicit_strings', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L104-L107
+      // v3.1.0
+
+      function h() { eval_equal('Opal.Sass.$$scope.Script.$$scope.String.$new("foo").$eq(Opal.Sass.$$scope.Script.$$scope.Parser.$parse("foo", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new())).value', 'true', {}, done) }
+      eval_equal('Opal.Sass.$$scope.Script.$$scope.String.$new("foo/bar").$eq(Opal.Sass.$$scope.Script.$$scope.Parser.$parse("foo/bar", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new())).value', 'true', {}, h)
+    });
+
+    it('test_basic_interpolation', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L109-L118
+      // v3.1.0
+
+      function i() { eval_equal(func_parse("foo\#{1 + 2}bar"), '"foo3bar"', {}, done) }
+      function h() { eval_equal(func_parse("foo\#{1 + 2} bar"), '"foo3 bar"', {}, i) }
+      function g() { eval_equal(func_parse("foo \#{1 + 2}bar"), '"foo 3bar"', {}, h) }
+      function f() { eval_equal(func_parse("foo \#{1 + 2} bar"), '"foo 3 bar"', {}, g) }
+      function e() { eval_equal(func_parse("foo \#{1 + 2}\#{2 + 3} bar"), '"foo 35 bar"', {}, f) }
+      function d() { eval_equal(func_parse("foo \#{1 + 2} \#{2 + 3} bar"), '"foo 3 5 bar"', {}, e) }
+      function c() { eval_equal(func_parse("\#{1 + 2}bar"), '"3bar"', {}, d) }
+      function b() { eval_equal(func_parse("foo\#{1 + 2}"), '"foo3"', {}, c) }
+      eval_equal(func_parse("\#{1 + 2}"), '"3"', {}, b)
+    });
+
+    it('test_basic_interpolation', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L109-L118
+      // v3.1.0
+
+      function c() { eval_equal(func_parse("flabnabbit(#{1 + \\\"foo\\\"})"), '"flabnabbit(1foo)"', {}, done) }
+      function b() { eval_equal(func_parse("flabnabbit(foo #{1 + \\\"foo\\\"}baz)"), '"flabnabbit(foo 1foobaz)"', {}, c) }
+      eval_equal(func_parse("flabnabbit(foo #{1 + \\\"foo\\\"}#{2 + \\\"bar\\\"} baz)"), '"flabnabbit(foo 1foo2bar baz)"', {}, b)
+    });
+
+    it('test_interpolation_near_operators', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L128-L163
+      // v3.1.0
+
+      function ab() { eval_equal(func_parse("#{1 + 2} , #{3 + 4}"), '"3 , 7"', {}, done) }
+      function aa() { eval_equal(func_parse("#{1 + 2}, #{3 + 4}"), '"3, 7"', {}, ab) }
+      function z() { eval_equal(func_parse("#{1 + 2} ,#{3 + 4}"), '"3 ,7"', {}, aa) }
+      function y() { eval_equal(func_parse("#{1 + 2},#{3 + 4}"), '"3,7"', {}, z) }
+      function x() { eval_equal(func_parse("3 / #{3 + 4}"), '"3 / 7"', {}, y) }
+      function w() { eval_equal(func_parse("3 /#{3 + 4}"), '"3 /7"', {}, x) }
+      function v() { eval_equal(func_parse("3/ #{3 + 4}"), '"3/ 7"', {}, w) }
+      function u() { eval_equal(func_parse("3/#{3 + 4}"), '"3/7"', {}, v) }
+      function t() { eval_equal(func_parse("#{1 + 2} * 7"), '"3 * 7"', {}, u) }
+      function s() { eval_equal(func_parse("#{1 + 2}* 7"), '"3* 7"', {}, t) }
+      function r() { eval_equal(func_parse("#{1 + 2} *7"), '"3 *7"', {}, s) }
+      function q() { eval_equal(func_parse("#{1 + 2}*7"), '"3*7"', {}, r) }
+      function p() { eval_equal(func_parse("-#{1 + 2}"), '"-3"', {}, q) }
+      function o() { eval_equal(func_parse("- #{1 + 2}"), '"- 3"', {}, p) }
+      function n() { eval_equal(func_parse("5 + #{1 + 2} * #{3 + 4}"), '"5 + 3 * 7"', {}, o) }
+      function m() { eval_equal(func_parse("5 +#{1 + 2} * #{3 + 4}"), '"5 +3 * 7"', {}, n) }
+      function l() { eval_equal(func_parse("5+#{1 + 2} * #{3 + 4}"), '"5+3 * 7"', {}, m) }
+      function k() { eval_equal(func_parse("#{1 + 2} * #{3 + 4} + 5"), '"3 * 7 + 5"', {}, l) }
+      function j() { eval_equal(func_parse("#{1 + 2} * #{3 + 4}+ 5"), '"3 * 7+ 5"', {}, k) }
+      function i() { eval_equal(func_parse("#{1 + 2} * #{3 + 4}+5"), '"3 * 7+5"', {}, j) }
+      function h() { eval_equal(func_parse("5 / (#{1 + 2} + #{3 + 4})"), '"5/3 + 7"', {}, i) }
+      function g() { eval_equal(func_parse("5 /(#{1 + 2} + #{3 + 4})"), '"5/3 + 7"', {}, h) }
+      function f() { eval_equal(func_parse("5 /( #{1 + 2} + #{3 + 4} )"), '"5/3 + 7"', {}, g) }
+      function e() { eval_equal(func_parse("(#{1 + 2} + #{3 + 4}) / 5"), '"3 + 7/5"', {}, f) }
+      function d() { eval_equal(func_parse("(#{1 + 2} + #{3 + 4})/ 5"), '"3 + 7/5"', {}, e) }
+      function c() { eval_equal(func_parse("( #{1 + 2} + #{3 + 4} )/ 5"), '"3 + 7/5"', {}, d) }
+      function b() { eval_equal(func_parse("#{1 + 2} + 2 + 3"), '"3 + 5"', {}, c) }
+        eval_equal(func_parse("#{1 + 2} +2 + 3"), '"3 +5"', {}, b)
+    });
+
+    it('test_string_interpolation', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L165-L170
+      // v3.1.0
+
+      function d() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("\\"foo \\\\\\#{\\#{\\"ba\\" + \\"r\\"} baz} bang\\"", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).$to_s()', '"\\\"foo #{bar baz} bang\\\""', {}, done) }
+      function c() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("\\"foo \\#{\\"\\#{\\"ba\\" + \\"r\\"} baz\\"} bang\\"", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).$to_s()', '"\\\"foo bar baz bang\\\""', {}, d) }
+      function b() {eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("\\"foo \\#{\\"bar\\"}, \\#{\\"baz\\"} bang\\"", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).$to_s()',  '"\\\"foo bar, baz bang\\\""', {}, c) }
+        eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("\\"foo \\#{\\"\\\\\\#{\\" + \\"baz\\"} bang\\"", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).$to_s()', '"\\\"foo #{baz bang\\\""', {}, b)
+    });
+
+    it('test_rule_interpolation', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L172-L194
+      // v3.1.0
+
+      function c() { equal("foo #{\"#{\"ba\" + \"r\"} baz\"} bang\n  a: b\n", "foo bar baz bang {\n  a: b; }\n", {syntax: 'sass'}, done) }
+      function b() { equal("foo [bar=\"\\#{#{\"ba\" + \"r\"} baz}\"] bang\n  a: b\n", "foo [bar=\"#{bar baz}\"] bang {\n  a: b; }\n", {syntax: 'sass'}, c) }
+      equal("foo [bar=\"#{\"\\#{\" + \"baz\"}\"] bang\n  a: b\n", "foo [bar=\"#{baz\"] bang {\n  a: b; }\n", {syntax: 'sass'}, b)
+    });
+
+    it('test_inaccessible_functions', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L196-L199
+      // v3.1.0
+
+      function b() { eval_equal(func_parse("send(to_s)"), '"send(to_s)"', {}, done) }
+        eval_equal(func_parse("public_instance_methods()"), '"public_instance_methods()"', {}, b)
+    });
+
+    it('test_adding_functions_directly_to_functions_module', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L201-L206
+      // v3.1.0
+
+      function d() { eval_equal("!!Opal.Sass.$$scope.Script.$$scope.Functions.$send('remove_method', 'nonexistant')", 'true', {}, done) }
+      function c() { eval_equal("Opal.Sass.$$scope.Script.$$scope.Functions['$callable?']('nonexistant')", 'true', {}, d)}
+      function b() { eval_equal('var b=Opal.Sass.$$scope.Script.$$scope.Functions,a=b.$class_eval,T;(a.$$p = (T=function(){return Opal.def(b, "$nonexistant", function(){})},0, 0, T), a).call(b)', 'undefined', {}, c) }
+        eval_equal("!Opal.Sass.$$scope.Script.$$scope.Functions['$callable?']('nonexistant')", 'true', {}, b)
+    });
+
+    it('test_default_functions', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L208-L211
+      // v3.1.0
+
+      function b() { eval_equal(func_parse("url(12)"), '"url(12)"', {}, done) }
+      eval_equal(func_parse("blam('foo')"), '"blam(\\\"foo\\\")"', {}, b)
+    });
+
+    it('test_funcall_requires_no_whitespace_before_lparen', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L218-L221
+      // v3.1.0
+
+      function b() { eval_equal(func_parse("no-repeat (7px + 8px)"), '"no-repeat 15px"', {}, done) }
+      eval_equal(func_parse("no-repeat(7px + 8px)"), '"no-repeat(15px)"', {}, b)
+    });
+
+    it('test_dynamic_url', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L223-L228
+      // v3.1.0
+
+      function d() { eval_equal("env=Opal.Sass.$$scope.Environment.$new();env.$set_var('foo', 'foo-bar');Opal.Sass.$$scope.Script.$$scope.Parser.$parse('url($foo)', 0, 0).$perform(env).$to_s()", '"url(foo-bar)"', {}, done) }
+      function c() { eval_equal("env=Opal.Sass.$$scope.Environment.$new();env.$set_var('foo',Opal.Sass.$$scope.Script.$$scope.String.$new('foo-bar'));env.$set_var('bar',Opal.Sass.$$scope.Script.$$scope.String.$new('baz'));Opal.Sass.$$scope.Script.$$scope.Parser.$parse('url($foo $bar)', 0, 0).$perform(env).$to_s()", '"url(foo-bar baz)"', {}, d)}
+      function b() { eval_equal("env=Opal.Sass.$$scope.Environment.$new();env.$set_var('bar',Opal.Sass.$$scope.Script.$$scope.String.$new('baz'));Opal.Sass.$$scope.Script.$$scope.Parser.$parse('url(foo $bar)', 0, 0).$perform(env).$to_s()", '"url(foo baz)"', {}, c) }
+        eval_equal(func_parse("url(foo    bar)"), '"url(foo bar)"', {}, b)
+    });
+
+    it('test_url_with_interpolation', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L230-L235
+      // v3.1.0
+
+      function d() { eval_equal(func_parse("\'url(http://sass-lang.com/images/\#{foo-bar})\'"), '"\\\"url(http://sass-lang.com/images/foo-bar)\\\""', {}, done) }
+      function c() { eval_equal(func_parse("url('http://sass-lang.com/images/\#{foo-bar}')"), '"url(\\\"http://sass-lang.com/images/foo-bar\\\")"', {}, d)}
+      eval_equal(func_parse("url('http://sass-lang.com/images/#{foo-bar}')"), '"url(\\\"http://sass-lang.com/images/foo-bar\\\")"', {}, c)
+    });
+
+    it('test_hyphenated_variables', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L237-L239
+      // v3.1.0
+
+      eval_equal("env=Opal.Sass.$$scope.Environment.$new();env.$set_var('a-b',Opal.Sass.$$scope.Script.$$scope.String.$new('a-b'));Opal.Sass.$$scope.Script.$$scope.Parser.$parse('$a-b', 0, 0).$perform(env).$to_s()", '"a-b"', {}, done)
+    });
+
+    it('test_ruby_equality', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L241-L249
+      // v3.1.0
+
+      function g() { eval_equal(func_parse('foo'), func_parse('foo'), {}, done)}
+      function f() { eval_equal(func_parse("1"), func_parse("1.0"), {}, g)}
+      function e() { eval_equal(func_parse("1 2 3.0"), func_parse('1 2 3'), {}, f)}
+      function d() { eval_equal(func_parse("1, 2, 3.0"), func_parse("1, 2, 3"), {}, e)}
+      function c() { eval_equal(func_parse("(1 2), (3, 4), (5 6)"), func_parse("(1 2), (3, 4), (5 6)"), {}, d)}
+      function b() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("1, 2, 3", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new()).$eq(Opal.Sass.$$scope.Script.$$scope.Parser.$parse("1 2 3", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new())).value', 'false', {}, c)}
+        eval_equal(func_parse("1"), func_parse("1"), {}, b)
+    });
+
+    it('test_booleans', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L251-L254
+      // v3.1.0
+
+      function b() { eval_equal(func_parse("true"), '"true"', {}, done)}
+        eval_equal(func_parse("false"), '"false"', {}, b)
+    });
+
+    it('test_boolean_ops', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L256-L274
+      // v3.1.0
+
+      function q() { eval_equal(func_parse("true and true"), '"true"', {}, done) }
+      function p() { eval_equal(func_parse("false or true"), '"true"', {}, q) }
+      function o() { eval_equal(func_parse("true or false"), '"true"', {}, p) }
+      function n() { eval_equal(func_parse("true or true"), '"true"', {}, o) }
+      function m() { eval_equal(func_parse("false or false"), '"false"', {}, n) }
+      function l() { eval_equal(func_parse("false and true"), '"false"', {}, m) }
+      function k() { eval_equal(func_parse("true and false"), '"false"', {}, l) }
+      function j() { eval_equal(func_parse("false and false"), '"false"', {}, k) }
+      function i() { eval_equal(func_parse("not false"), '"true"', {}, j) }
+      function h() { eval_equal(func_parse("not true"), '"false"', {}, i) }
+      function g() { eval_equal(func_parse("not not true"), '"true"', {}, h) }
+      function f() { eval_equal(func_parse("false or 1"), '"1"', {}, g) }
+      function e() { eval_equal(func_parse("false and 1"), '"false"', {}, f) }
+      function d() { eval_equal(func_parse("2 or 3"), '"2"', {}, e) }
+      eval_equal(func_parse("2 and 3"), '"3"', {}, d)
+    });
+
+    it('test_arithmetic_ops', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L276-L284
+      // v3.1.0
+
+      function f() { eval_equal(func_parse("1 + 1"), '"2"', {}, done) }
+      function e() { eval_equal(func_parse("1 - 1"), '"0"', {}, f) }
+      function d() { eval_equal(func_parse("2 * 4"), '"8"', {}, e) }
+      function c() { eval_equal(func_parse("(2 / 4)"), '"0.5"', {}, d) }
+      function b() { eval_equal(func_parse("(4 / 2)"), '"2"', {}, c) }
+      eval_equal(func_parse("-1"), '"-1"', {}, b)
+    });
+
+    it('test_string_ops', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L286-L302
+      // v3.1.0
+
+      function n() { eval_equal(func_parse("\\\"foo\\\" \\\"bar\\\""), '"\\\"foo\\\" \\\"bar\\\""', {}, done) }
+      function m() { eval_equal(func_parse("true 1"), '"true 1"', {}, n) }
+      function l() { eval_equal(func_parse("\'foo\' , \'bar\'"), '"\\\"foo\\\", \\\"bar\\\""', {}, m) }
+      function k() { eval_equal(func_parse("true , 1"), '"true, 1"', {}, l) }
+      function j() { eval_equal(func_parse("\\\"foo\\\" + \\\"bar\\\""), '"\\\"foobar\\\""', {}, k) }
+      function i() { eval_equal(func_parse("true + 1"), '"true1"', {}, j) }
+      function h() { eval_equal(func_parse("\'foo\' - \'bar\'"), '"\\\"foo\\\"-\\\"bar\\\""', {}, i) }
+      function g() { eval_equal(func_parse("true - 1"), '"true-1"', {}, h) }
+      function f() { eval_equal(func_parse("\\\"foo\\\" / \\\"bar\\\""), '"\\\"foo\\\"/\\\"bar\\\""', {}, g) }
+      function e() { eval_equal(func_parse("true / 1"), '"true/1"', {}, f) }
+      function d() { eval_equal(func_parse("- \'bar\'"), '"-\\\"bar\\\""', {}, e) }
+      function c() { eval_equal(func_parse("- true"), '"-true"', {}, d) }
+      function b() { eval_equal(func_parse("/  \\\"bar\\\""), '"/\\\"bar\\\""', {}, c) }
+        eval_equal(func_parse("/ true"), '"/true"', {}, b)
+    });
+
+    it('test_relational_ops', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L304-L317
+      // v3.1.0
+
+      function l() { eval_equal(func_parse("1 > 2"), '"false"', {}, done) }
+      function k() { eval_equal(func_parse("2 > 2"), '"false"', {}, l) }
+      function j() { eval_equal(func_parse("3 > 2"), '"true"', {}, k) }
+      function i() { eval_equal(func_parse("1 >= 2"), '"false"', {}, j) }
+      function h() { eval_equal(func_parse("2 >= 2"), '"true"', {}, i) }
+      function g() { eval_equal(func_parse("3 >= 2"), '"true"', {}, h) }
+      function f() { eval_equal(func_parse("1 < 2"), '"true"', {}, g) }
+      function e() { eval_equal(func_parse("2 < 2"), '"false"', {}, f) }
+      function d() { eval_equal(func_parse("3 < 2"), '"false"', {}, e) }
+      function c() { eval_equal(func_parse("1 <= 2"), '"true"', {}, d) }
+      function b() { eval_equal(func_parse("2 <= 2"), '"true"', {}, c) }
+        eval_equal(func_parse("3 <= 2"), '"false"', {}, b)
+    });
+
+    it('test_equals', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L319-L334
+      // v3.1.0
+
+      function m() { eval_equal('env=Opal.Sass.$$scope.Environment.$new();env.$set_var(\'foo\',Opal.Sass.$$scope.Script.$$scope.String.$new(\'foo\'));Opal.Sass.$$scope.Script.$$scope.Parser.$parse(\'"foo" == $foo\', 0, 0).$perform(env).$to_s()', '"true"', {}, done) }
+      function l() { eval_equal(func_parse("1 == 1.0"), '"true"', {}, m) }
+      function k() { eval_equal(func_parse("false != true"), '"true"', {}, l) }
+      function j() { eval_equal(func_parse("1em == 1px"), '"false"', {}, k) }
+      function i() { eval_equal(func_parse("12 != 12"), '"false"', {}, j) }
+      function h() { eval_equal(func_parse("(foo bar baz) == (foo bar baz)"), '"true"', {}, i) }
+      function g() { eval_equal(func_parse("(foo, bar, baz) == (foo, bar, baz)"), '"true"', {}, h) }
+      function f() { eval_equal(func_parse("((1 2), (3, 4), (5 6)) == ((1 2), (3, 4), (5 6))"), '"true"', {}, g) }
+      function e() { eval_equal(func_parse("((1 2), (3 4)) == (1 2, 3 4)"), '"true"', {}, f) }
+      function d() { eval_equal(func_parse("((1 2) 3) == (1 2 3)"), '"false"', {}, e) }
+      function c() { eval_equal(func_parse("(1 (2 3)) == (1 2 3)"), '"false"', {}, d) }
+      function b() { eval_equal(func_parse("((1, 2) (3, 4)) == (1, 2 3, 4)"), '"false"', {}, c) }
+        eval_equal(func_parse("(1 2 3) == (1, 2, 3)"), '"false"', {}, b)
+    });
+
+    it('test_operation_precedence', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L336-L343
+      // v3.1.0
+
+      function f() { eval_equal(func_parse("true and false false or true"), '"false true"', {}, done) }
+      function e() { eval_equal(func_parse("false and true or true and true"), '"true"', {}, f) }
+      function d() { eval_equal(func_parse("1 == 2 or 3 == 3"), '"true"', {}, e) }
+      function c() { eval_equal(func_parse("1 < 2 == 3 >= 3"), '"true"', {}, d) }
+      function b() { eval_equal(func_parse("1 + 3 > 4 - 2"), '"true"', {}, c) }
+        eval_equal(func_parse("1 + 2 * 3 + 4"), '"11"', {}, b)
+    });
+
+    it('test_functions', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L345-L348
+      // v3.1.0
+
+      function b() { eval_equal(func_parse("hsl(120, 100%, 75%)"), '"#80ff80"', {}, done) }
+        eval_equal(func_parse("hsl(120, 100%, 75%) + #010001"), '"#81ff81"', {}, b)
+    });
+
+    it('test_operator_unit_conversion', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L350-L356
+      // v3.1.0
+
+      function e() { eval_equal(func_parse("1cm + 1mm"), '"1.1cm"', {}, done) }
+      function d() { eval_equal(func_parse("2mm < 1cm"), '"true"', {}, e) }
+      function c() { eval_equal(func_parse("10mm == 1cm"), '"true"', {}, d) }
+      function b() { eval_equal(func_parse("1 == 1cm"), '"true"', {}, c) }
+        eval_equal(func_parse("1.1cm == 11mm"), '"true"', {}, b)
+    });
+
+    it('test_slash_compiles_literally_when_left_alone', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L363-L369
+      // v3.1.0
+
+      function d() { eval_equal(func_parse("1px/2px"), '"1px/2px"', {}, done) }
+      function c() { eval_equal(func_parse("1px/2px/3px/4px"), '"1px/2px/3px/4px"', {}, d) }
+      function b() { eval_equal(func_parse("1px/2px redpx bluepx"), '"1px/2px redpx bluepx"', {}, c) }
+        eval_equal(func_parse("foo 1px/2px/3px bar"), '"foo 1px/2px/3px bar"', {}, b)
+    });
+
+    it('test_slash_compiles_literally_when_left_alone', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L363-L369
+      // v3.1.0
+
+      function c() { eval_equal(func_parse("(1px/2px)"), '"0.5"', {}, done) }
+      function b() { eval_equal(func_parse("(1px)/2px"), '"0.5"', {}, c) }
+        eval_equal(func_parse("1px/(2px)"), '"0.5"', {}, b)
+    });
+
+    it('test_operator_unit_conversion', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L350-L356
+      // v3.1.0
+
+      function d() { eval_equal(func_parse("1px*1px/2px"), '"0.5px"', {}, done) }
+      function c() { eval_equal(func_parse("1px/2px*1px"), '"0.5px"', {}, d) }
+      function b() { eval_equal(func_parse("0+1px/2px"), '"0.5"', {}, c) }
+        eval_equal(func_parse("1px/2px+0"), '"0.5"', {}, b)
+    });
+
+    it('test_slash_divides_with_variable', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L384-L388
+      // v3.1.0
+
+      function c() { eval_equal('env=Opal.Sass.$$scope.Environment.$new();env.$set_var(\'var\',Opal.Sass.$$scope.Script.$$scope.Parser.$parse("1px", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()));Opal.Sass.$$scope.Script.$$scope.Parser.$parse("$var/2px", 0, 0).$perform(env).value',0.5, {}, done) }
+      function b() { eval_equal('env=Opal.Sass.$$scope.Environment.$new();env.$set_var(\'var\',Opal.Sass.$$scope.Script.$$scope.Parser.$parse("2px", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()));Opal.Sass.$$scope.Script.$$scope.Parser.$parse("1px/$var", 0, 0).$perform(env).value', 0.5, {}, c) }
+        eval_equal('env=Opal.Sass.$$scope.Environment.$new();env.$set_var(\'var\',Opal.Sass.$$scope.Script.$$scope.Parser.$parse("1px/2px", 0, 0).$perform(Opal.Sass.$$scope.Environment.$new()).value);Opal.Sass.$$scope.Script.$$scope.Parser.$parse("$var", 0, 0).$perform(env)', 0.5, {}, b)
+    });
+
+    it('test_colors_with_wrong_number_of_digits', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L390-L401
+      // v3.1.0
+
+      function e() {eval_err(func_parse('#0'), "Colors must have either three or six digits: '#0'", {}, done)}
+      function d() {eval_err(func_parse('#12'), "Colors must have either three or six digits: '#12'", {}, e)}
+      function c() {eval_err(func_parse('#abcd'), "Colors must have either three or six digits: '#abcd'", {}, d)}
+      function b() {eval_err(func_parse('#abcdE'), "Colors must have either three or six digits: '#abcdE'", {}, c)}
+      eval_err(func_parse('#abcdEFA'), "Colors must have either three or six digits: '#abcdEFA'", {}, b);
+    });
+
+    it('test_case_insensitive_color_names', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L403-L407
+      // v3.1.0
+
+      function c() { eval_equal(func_parse("BLUE"), '"blue"', {}, done) }
+      function b() { eval_equal(func_parse("rEd"), '"red"', {}, c) }
+        eval_equal(func_parse("mix(GrEeN, ReD)"), '"#7f4000"', {}, b)
+    });
+
+    it('test_empty_list', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L409-L415
+      // v3.1.0
+
+      function e() {eval_err(func_parse('()'), "() isn't a valid CSS value.", {}, done)}
+      function d() {eval_err(func_parse('nth(append((), ()), 1)'), "() isn't a valid CSS value.", {}, e)}
+      function c() { eval_equal(func_parse("() 1 2 3"), '"1 2 3"', {}, d) }
+      function b() { eval_equal(func_parse("1 2 3 ()"), '"1 2 3"', {}, c) }
+        eval_equal(func_parse("1 2 () 3"), '"1 2 3"', {}, b)
+    });
+
+    it('test_funcall_has_higher_precedence_than_color_name', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L419-L424
+      // v3.1.0
+
+      function d() { eval_equal(func_parse("teal(12)"), '"teal(12)"', {}, done) }
+      function c() { eval_equal(func_parse("tealbang(12)"), '"tealbang(12)"', {}, d) }
+      function b() { eval_equal(func_parse("teal-bang(12)"), '"teal-bang(12)"', {}, c) }
+        eval_equal(func_parse("teal\\\\+bang(12)"), '"teal\\\\+bang(12)"', {}, b)
+    });
+
+    it('test_interpolation_after_hash', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L426-L428
+      // v3.1.0
+
+        eval_equal(func_parse("\\\"##{1 + 1}\\\""), '"\\\"#2\\\""', {}, done)
+    });
+
+    it('test_misplaced_comma_in_funcall', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L430-L433
+      // v3.1.0
+
+      eval_err(func_parse('foo(bar, )'), "Invalid CSS after \"foo(bar, \": expected function argument, was \")\"", {}, done);
+    });
+
+    it('test_color_prefixed_identifier', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L435-L438
+      // v3.1.0
+
+      function b() { eval_equal(func_parse("tealbang"), '"tealbang"', {}, done) }
+        eval_equal(func_parse("teal-bang"), '"teal-bang"', {}, b)
+    });
+
+    it('test_op_prefixed_identifier', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L440-L445
+      // v3.1.0
+
+      function d() { eval_equal(func_parse("notbang"), func_parse("notbang"), {}, done) }
+      function c() { eval_equal(func_parse("not-bang"), func_parse("not-bang"), {}, d) }
+      function b() { eval_equal(func_parse("or-bang"), func_parse("or-bang"), {}, c) }
+        eval_equal(func_parse("and-bang"), func_parse("and-bang"), {}, b)
+    });
+
+    it('test_number_printing', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L487-L495
+      // v3.1.0
+
+      function i() { eval_equal(func_parse("1"), '"1"', {}, done) }
+      function h() { eval_equal(func_parse("1.0"), '"1"', {}, i) }
+      function g() { eval_equal(func_parse("1.1214"), '"1.121"', {}, h) }
+      function f() { eval_equal(func_parse("1.1215"), '"1.122"', {}, g) }
+      function e() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("1.0/0.0", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new()).value', 'Infinity', {}, f) }
+      function d() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("-1.0/0.0", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new()).value', '-Infinity', {}, e) }
+      eval_equal('Number.isNaN(Opal.Sass.$$scope.Script.$$scope.Parser.$parse("0.0/0.0", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new()).value)', 'true', {}, d)
     });
   })
 });

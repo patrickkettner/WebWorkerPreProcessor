@@ -1,17 +1,17 @@
-From bb2a029e858bee45f3f3df10e3cb4b1836f9a0f7 Mon Sep 17 00:00:00 2001
+From 1fb218ef99d91d3a72fe2f1ffd3806d43e6764b2 Mon Sep 17 00:00:00 2001
 From: Patrick Kettner <patrickkettner@gmail.com>
-Date: Sat, 10 Dec 2016 02:16:11 -0800
+Date: Sun, 11 Dec 2016 22:06:22 -0800
 Subject: [PATCH] .
 
 ---
- lib/sass/engine.rb                      |  66 ++++++++------------
+ lib/sass/engine.rb                      |  68 ++++++++------------
  lib/sass/environment.rb                 |  10 +--
  lib/sass/error.rb                       |  11 +++-
  lib/sass/less.rb                        |   2 +-
  lib/sass/plugin/compiler.rb             |  75 ----------------------
  lib/sass/script.rb                      |   5 +-
  lib/sass/script/interpolation.rb        |  24 +++----
- lib/sass/script/lexer.rb                |  25 +++++---
+ lib/sass/script/lexer.rb                |  29 ++++++---
  lib/sass/script/number.rb               |   4 +-
  lib/sass/script/parser.rb               |   3 +-
  lib/sass/script/string_interpolation.rb |  28 ++++-----
@@ -20,20 +20,21 @@ Subject: [PATCH] .
  lib/sass/scss/rx.rb                     |  79 ++++++++++++-----------
  lib/sass/scss/static_parser.rb          |   2 +-
  lib/sass/selector.rb                    |   4 ++
+ lib/sass/selector/sequence.rb           |   9 ++-
  lib/sass/selector/simple_sequence.rb    |   2 +-
  lib/sass/shared.rb                      |   2 +-
  lib/sass/tree/comment_node.rb           |   6 +-
  lib/sass/tree/rule_node.rb              |   5 +-
  lib/sass/tree/visitors/base.rb          |   2 +-
- lib/sass/tree/visitors/convert.rb       |  24 +++----
+ lib/sass/tree/visitors/convert.rb       |  34 +++++-----
  lib/sass/tree/visitors/perform.rb       |  10 +--
  lib/sass/tree/visitors/to_css.rb        |  66 +++++++++-----------
  lib/sass/util.rb                        |  56 ++---------------
  lib/sass/version.rb                     | 107 +-------------------------------
- 26 files changed, 222 insertions(+), 432 deletions(-)
+ 27 files changed, 238 insertions(+), 441 deletions(-)
 
 diff --git a/lib/sass/engine.rb b/lib/sass/engine.rb
-index a54143a..b9acaa0 100644
+index a54143a..d902d76 100644
 --- a/lib/sass/engine.rb
 +++ b/lib/sass/engine.rb
 @@ -1,6 +1,5 @@
@@ -51,7 +52,7 @@ index a54143a..b9acaa0 100644
        options = DEFAULT_OPTIONS.merge(options.reject {|k, v| v.nil?})
  
        # If the `:filename` option is passed in without an importer,
-@@ -291,30 +291,13 @@ module Sass
+@@ -291,29 +291,12 @@ module Sass
        rendered = _to_tree.render
        return rendered if ruby1_8?
        begin
@@ -63,7 +64,6 @@ index a54143a..b9acaa0 100644
        end
 -      rendered.gsub(Regexp.new('\A@charset "(.*?)"'.encode(source_encoding)),
 -        "@charset \"#{source_encoding.name}\"".encode(source_encoding))
-+      #rendered = rendered.gsub(Regexp.new('^@charset "(.*?)"'), "@charset \"#{UTF-8}\"")
      end
  
      def _to_tree
@@ -80,10 +80,9 @@ index a54143a..b9acaa0 100644
 -      end
 -
 -      check_encoding!
--
+ 
        if @options[:syntax] == :scss
          root = Sass::SCSS::Parser.new(@template).parse
-       else
 @@ -323,15 +306,6 @@ module Sass
        end
  
@@ -176,7 +175,7 @@ index a54143a..b9acaa0 100644
      def parse_function(line, root)
        name, arg_string = line.text.scan(FUNCTION_RE).first
        raise SyntaxError.new("Invalid function definition \"#{line.text}\".") if name.nil?
-@@ -823,14 +801,20 @@ WARNING
+@@ -823,15 +801,23 @@ WARNING
        end
  
        return silent ? "//" : "/* */" if content.empty?
@@ -187,20 +186,24 @@ index a54143a..b9acaa0 100644
 +      content = content.map {|l|
 +	old_val = l
 +	l = l.gsub(/^\*( ?)/, '\1')
-+	if l == old_val
-+	  (l.empty? ? "" : " ") + l
-+	end
++	l = (l.empty? ? "" : " ") + l if l == old_val
++	l
 +      }
 +      content[0] = content.first.gsub(/^ /, '') unless removed_first
        if silent
-         "//" + content.join("\n//")
+-        "//" + content.join("\n//")
++	res = "//" + content.join("\n//")
        else
          # The #gsub fixes the case of a trailing */
 -        "/*" + content.join("\n *").gsub(/ \*\Z/, '') + " */"
-+	"/*" + content.join("\n *").gsub(/ \*$/, '') + " */"
++	res = "/*" + content.join("\n *")
++	res = res[0...-2] if res[-2..-1] == ' *'
++	res += " */"
        end
++      res
      end
  
+     def parse_interp(text, offset = 0)
 diff --git a/lib/sass/environment.rb b/lib/sass/environment.rb
 index b57799f..5826b52 100644
 --- a/lib/sass/environment.rb
@@ -438,7 +441,7 @@ index e4a2a20..16553e9 100644
      end
    end
 diff --git a/lib/sass/script/lexer.rb b/lib/sass/script/lexer.rb
-index 1641f84..9dc1e7b 100644
+index 1641f84..965df4e 100644
 --- a/lib/sass/script/lexer.rb
 +++ b/lib/sass/script/lexer.rb
 @@ -87,12 +87,13 @@ module Sass
@@ -469,6 +472,19 @@ index 1641f84..9dc1e7b 100644
        }
  
        # @param str [String, StringScanner] The source text to lex
+@@ -149,10 +150,10 @@ module Sass
+       # @return [Boolean]
+       def whitespace?(tok = @tok)
+         if tok
+-          @scanner.string[0...tok.pos] =~ /\s\Z/
++	  @scanner.string[0...tok.pos] =~ /\s$/
+         else
+           @scanner.string[@scanner.pos, 1] =~ /^\s/ ||
+-            @scanner.string[@scanner.pos - 1, 1] =~ /\s\Z/
++	    @scanner.string[@scanner.pos - 1, 1] =~ /\s$/
+         end
+       end
+ 
 @@ -211,7 +212,7 @@ module Sass
          return if done?
          return unless value = token
@@ -498,7 +514,7 @@ index 1641f84..9dc1e7b 100644
        end
  
 diff --git a/lib/sass/script/number.rb b/lib/sass/script/number.rb
-index ae27cb9..d30502b 100644
+index ae27cb9..560f5fa 100644
 --- a/lib/sass/script/number.rb
 +++ b/lib/sass/script/number.rb
 @@ -322,8 +322,8 @@ module Sass::Script
@@ -507,8 +523,8 @@ index ae27cb9..d30502b 100644
        if @denominator_units.any?
 -        rv << "/"
 -        rv << @denominator_units.sort.join("*")
-+        rv += "/"
-+        rv += @denominator_units.sort.join("*")
++	rv += "/"
++	rv += @denominator_units.sort.join("*")
        end
        rv
      end
@@ -593,7 +609,7 @@ index 8964ced..f5c594f 100644
        end
  
 diff --git a/lib/sass/scss/parser.rb b/lib/sass/scss/parser.rb
-index 6c9d059..ebcdf86 100644
+index 6c9d059..134a62a 100644
 --- a/lib/sass/scss/parser.rb
 +++ b/lib/sass/scss/parser.rb
 @@ -22,7 +22,7 @@ module Sass
@@ -601,7 +617,7 @@ index 6c9d059..ebcdf86 100644
        # @raise [Sass::SyntaxError] if there's a syntax error in the document
        def parse
 -        init_scanner!
-+	@scanner = init_scanner
++        @scanner = init_scanner
          root = stylesheet
          expected("selector or at-rule") unless @scanner.eos?
          root
@@ -610,7 +626,7 @@ index 6c9d059..ebcdf86 100644
        #   The interpolated identifier, or nil if none could be parsed
        def parse_interp_ident
 -        init_scanner!
-+	@scanner = init_scanner
++        @scanner = init_scanner
          interp_ident
        end
  
@@ -631,13 +647,13 @@ index 6c9d059..ebcdf86 100644
 -          string[0...@scanner.pos].
 -          reverse[/.*?\*\/(.*?)($|\Z)/, 1].
 -          reverse.gsub(/[^\s]/, ' ')
-+	if single_line
-+	  pre_str = ""
-+	else
-+	  pre_str = @scanner.string[0...@scanner.pos].reverse
-+	  pre_str = pre_str[/.*?\*\/(.*?)($|\Z)/m, 1] || ''
-+	  pre_str = pre_str.reverse.gsub(/[^\s]/, ' ')
-+	end
++        if single_line
++          pre_str = ""
++        else
++          pre_str = @scanner.string[0...@scanner.pos].reverse
++          pre_str = pre_str[/.*?\*\/(.*?)($|\Z)/m, 1] || ''
++          pre_str = pre_str.reverse.gsub(/[^\s]/, ' ')
++        end
          text = text.sub(/^\s*\/\//, '/*').gsub(/^\s*\/\//, ' *') + ' */' if single_line
          comment = Sass::Tree::CommentNode.new(pre_str + text, single_line)
          comment.line = @line - text.count("\n")
@@ -646,7 +662,7 @@ index 6c9d059..ebcdf86 100644
          ws = ''
          while tok(/,/)
 -          ws << str{ss}
-+	  ws += str{ss}
++          ws += str{ss}
            if sel = _selector
              selectors << sel
              selectors[-1] = Selector::Sequence.new(["\n"] + selectors.last.members) if ws.include?("\n")
@@ -655,8 +671,8 @@ index 6c9d059..ebcdf86 100644
              expected('"{"')
            rescue Sass::SyntaxError => e
 -            e.message << "\n\n" << <<MESSAGE
-+	    e.append_to_err "\n\n"
-+	    e.append_to_err <<MESSAGE
++            e.append_to_err "\n\n"
++            e.append_to_err <<MESSAGE
  In Sass 3, the parent selector & can only be used where element names are valid,
  since it could potentially be replaced by an element name.
  MESSAGE
@@ -665,7 +681,7 @@ index 6c9d059..ebcdf86 100644
          while @scanner[2] == '#{'
            @scanner.pos -= 2 # Don't consume the #{
 -          res.last.slice!(-2..-1)
-+	  res[-1] = res.last.slice(0...-2)
++          res[-1] = res.last.slice(0...-2)
            res << expr!(:interpolation) << tok(mid_re)
          end
          res
@@ -674,20 +690,20 @@ index 6c9d059..ebcdf86 100644
          # Get rid of whitespace between pos and the last token,
          # but only if there's a newline in there
 -        after.gsub!(/\s*\n\s*$/, '')
-+	after = after.gsub(/\s*\n\s*$/, '')
++        after = after.gsub(/\s*\n\s*$/, '')
          # Also get rid of stuff before the last newline
 -        after.gsub!(/.*\n/, '')
-+	after = after.gsub(/.*\n/, '')
++        after = after.gsub(/.*\n/, '')
          after = "..." + after[-15..-1] if after.size > 18
  
          was = scanner.rest.dup
          # Get rid of whitespace between pos and the next token,
          # but only if there's a newline in there
 -        was.gsub!(/^\s*\n\s*/, '')
-+	was = was.gsub(/^\s*\n\s*/, '')
++        was = was.gsub(/^\s*\n\s*/, '')
          # Also get rid of stuff after the next newline
 -        was.gsub!(/\n.*/, '')
-+	was = was.gsub(/\n.*/, '')
++        was = was.gsub(/\n.*/, '')
          was = was[0...15] + "..." if was.size > 18
  
          raise Sass::SyntaxError.new(
@@ -696,7 +712,7 @@ index 6c9d059..ebcdf86 100644
            @expected = nil
            if !@strs.empty? && rx != COMMENT && rx != SINGLE_LINE_COMMENT
 -            @strs.each {|s| s << res}
-+	    @strs = @strs.map {|s| s += res}
++            @strs = @strs.map {|s| s += res}
            end
            res
          end
@@ -874,6 +890,27 @@ index 8551803..7571798 100644
          ns, accept = unify_namespaces(namespace, sels.first.namespace)
          return unless accept
          [name == :universal ? Universal.new(ns) : Element.new(name, ns)] + sels[1..-1]
+diff --git a/lib/sass/selector/sequence.rb b/lib/sass/selector/sequence.rb
+index fef8a93..cb0bbf7 100644
+--- a/lib/sass/selector/sequence.rb
++++ b/lib/sass/selector/sequence.rb
+@@ -194,9 +194,14 @@ module Sass
+         tail = seq.dup
+         until tail.empty?
+           head = []
+-          begin
++          loop do
+             head << tail.shift
+-          end while !tail.empty? && head.last.is_a?(String) || tail.first.is_a?(String)
++            if !tail.empty? && head.last.is_a?(String) || tail.first.is_a?(String)
++              next
++            else
++              break
++            end
++          end
+           newseq << head
+         end
+         return newseq
 diff --git a/lib/sass/selector/simple_sequence.rb b/lib/sass/selector/simple_sequence.rb
 index ce88982..a4d2cb8 100644
 --- a/lib/sass/selector/simple_sequence.rb
@@ -959,7 +996,7 @@ index ebbf5fd..c104bad 100644
        else
          visit_children(node)
 diff --git a/lib/sass/tree/visitors/convert.rb b/lib/sass/tree/visitors/convert.rb
-index 5eac1aa..f40079c 100644
+index 5eac1aa..4cd3f53 100644
 --- a/lib/sass/tree/visitors/convert.rb
 +++ b/lib/sass/tree/visitors/convert.rb
 @@ -51,20 +51,20 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
@@ -1025,9 +1062,20 @@ index 5eac1aa..f40079c 100644
      str
    ensure
      @is_else = false
-@@ -165,7 +165,7 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
-           end
-         end.join(", ") + ')'
+@@ -159,13 +159,13 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+       else
+         '(' + node.args.map do |v, d|
+           if d
+-            "#{v.to_sass(@options)}: #{d.to_sass(@options)}"
+-          else
+-            v.to_sass(@options)
+-          end
+-        end.join(", ") + ')'
++	    "#{v.to_sass(@options)}: #{d.to_sass(@options)}"
++	  else
++	    v.to_sass(@options)
++	  end
++	end.join(", ") + ')'
        end
 -          
 +
