@@ -4296,8 +4296,7 @@ describe('slim', function() {
    * v3.0.0
    *****************************************************************************************************/
     if (semver.gte(window.__libVersion, "v3.0.0")) {
-      // TODO this test fails becuase it relies on the \p{Word} which doesn't exist in javascript, and a comparable js compliant regex wasn't able to be squeezed in yet. PRs welcome
-      it.skip('test_unicode_tags', function(done) {
+      it('test_unicode_tags', function(done) {
         // https://github.com/slim-template/slim/blob/3d0b31bc097f245f3ae3d90c21d63816c7a82ebe/test/core/test_unicode.rb#L5-L9
         // v3.0.0
         var template = "Статья года"
@@ -4306,8 +4305,7 @@ describe('slim', function() {
         compare(template, expected, done);
       })
 
-      it.skip('test_unicode_attrs', function(done) {
-        // TODO see above TODO
+      it('test_unicode_attrs', function(done) {
         // https://github.com/slim-template/slim/blob/3d0b31bc097f245f3ae3d90c21d63816c7a82ebe/test/core/test_unicode.rb#L11-L15
         // v3.0.0
         var template = "Статья года=123 content"

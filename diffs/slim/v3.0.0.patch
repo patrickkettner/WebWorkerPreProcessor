@@ -1,22 +1,22 @@
-From c23aaf03fc2c9f290bf3dce1305f2fe146fbf44f Mon Sep 17 00:00:00 2001
+From 0919f3e38a0f00b3b4e9b1cc6267a08972e7a2a5 Mon Sep 17 00:00:00 2001
 From: Patrick Kettner <patrickkettner@gmail.com>
-Date: Thu, 24 Nov 2016 20:59:18 -0800
+Date: Mon, 12 Dec 2016 16:41:56 -0800
 Subject: [PATCH] .
 
 ---
  lib/slim/controls.rb          |   2 +-
  lib/slim/do_inserter.rb       |   2 +-
  lib/slim/embedded.rb          |   4 +-
- lib/slim/end_inserter.rb      |   6 +--
+ lib/slim/end_inserter.rb      |   6 +-
  lib/slim/engine.rb            |   3 +-
  lib/slim/include.rb           |   4 +-
- lib/slim/interpolation.rb     |  17 +++---
+ lib/slim/interpolation.rb     |  17 ++++--
  lib/slim/logic_less/filter.rb |   2 +-
- lib/slim/parser.rb            | 121 +++++++++++++++++++++++-------------------
+ lib/slim/parser.rb            | 126 ++++++++++++++++++++++++------------------
  lib/slim/smart/escaper.rb     |   4 +-
- lib/slim/smart/filter.rb      |   6 +--
- lib/slim/smart/parser.rb      |  12 ++---
- 12 files changed, 99 insertions(+), 84 deletions(-)
+ lib/slim/smart/filter.rb      |   6 +-
+ lib/slim/smart/parser.rb      |  12 ++--
+ 12 files changed, 104 insertions(+), 84 deletions(-)
 
 diff --git a/lib/slim/controls.rb b/lib/slim/controls.rb
 index 9f2d2e6..a05f445 100644
@@ -105,7 +105,7 @@ index 0f6867e..0412112 100644
    end
  end
 diff --git a/lib/slim/include.rb b/lib/slim/include.rb
-index 59862bd..1260b6a 100644
+index 59862bd..69deb19 100644
 --- a/lib/slim/include.rb
 +++ b/lib/slim/include.rb
 @@ -14,12 +14,12 @@ module Slim
@@ -113,7 +113,7 @@ index 59862bd..1260b6a 100644
        raise ArgumentError, 'Invalid include statement' unless attributes == [:html, :attrs] && !name.empty?
        unless file = find_file(name)
 -        name = "#{name}.slim" if name !~ /\.slim\Z/i
-+        name = "#{name}.slim" if name !~ /\.slim$/i
++	name = "#{name}.slim" if name !~ /\.slim$/i
          file = find_file(name)
        end
        raise Temple::FilterError, "'#{name}' not found in #{options[:include_dirs].join(':')}" unless file
@@ -176,7 +176,7 @@ index 6e45220..f053c3c 100644
            'inverted_section'
          else
 diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
-index 611f077..1f4c5f3 100644
+index 611f077..b87cddf 100644
 --- a/lib/slim/parser.rb
 +++ b/lib/slim/parser.rb
 @@ -49,7 +49,7 @@ module Slim
@@ -184,7 +184,7 @@ index 611f077..1f4c5f3 100644
        tabsize = options[:tabsize]
        if tabsize > 1
 -        @tab_re = /\G((?: {#{tabsize}})*) {0,#{tabsize-1}}\t/
-+        @tab_re = /((?: {#{tabsize}})*) {0,#{tabsize-1}}\t/
++	@tab_re = /((?: {#{tabsize}})*) {0,#{tabsize-1}}\t/
          @tab = '\1' + ' ' * tabsize
        else
          @tab_re = "\t"
@@ -193,7 +193,7 @@ index 611f077..1f4c5f3 100644
          if v.include?(:attr)
            @attr_shortcut[k] = [v[:attr]].flatten
 -          raise ArgumentError, 'You can only use special characters for attribute shortcuts' if k =~ /(\p{Word}|-)/
-+          raise ArgumentError, 'You can only use special characters for attribute shortcuts' if k =~ /(\w|-)/
++	  raise ArgumentError, 'You can only use special characters for attribute shortcuts' if k =~ /(\w|-)/
          end
        end
 -      keys = Regexp.union @attr_shortcut.keys.sort_by {|k| -k.size }
@@ -203,7 +203,7 @@ index 611f077..1f4c5f3 100644
 +      keys = @attr_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
 +      @attr_shortcut_re = /^([#{keys}]+)((?:\w|-)*)/
 +      keys = @tag_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
-+      @tag_re = /^(?:#{keys}|\*(?=[^\s]+)|(\w(?:\w|:|-)*\w|\w+))/
++      @tag_re = /^(?:#{keys}|\*(?=[^\s]+)|(#{WORD_RE}(?:#{WORD_RE}|:|-)*#{WORD_RE}|#{WORD_RE}+))/
        keys = Regexp.escape @code_attr_delims.keys.join
 -      @code_attr_delims_re = /\A[#{keys}]/
 +      @code_attr_delims_re = /^[#{keys}]/
@@ -217,16 +217,21 @@ index 611f077..1f4c5f3 100644
      end
  
      # Compile string to Temple expression
-@@ -92,7 +93,7 @@ module Slim
+@@ -92,7 +93,12 @@ module Slim
  
      protected
  
 -    ATTR_NAME = '\\A\\s*(\p{Word}(?:\p{Word}|:|-)*)'
-+    ATTR_NAME = '^\\s*(\w(?:\w|:|-)*)'
++    if RUBY_PLATFORM.eql? 'opal'
++      WORD_RE = '(?:[0-9A-Z_a-zªµºÀ-ÖØ-öø-ˁˆ-ˑˠ-ˤˬˮ\u0300-ʹͶ-ͷͺ-ͽΆΈ-ΊΌΎ-ΡΣ-ϵϷ-ҁ\u0483-ԣԱ-Ֆՙա-և\u0591-\u05bd\u05bf\u05c1-\u05c2\u05c4-\u05c5\u05c7א-תװ-ײ\u0610-\u061aء-\u065e٠-٩ٮ-ۓە-\u06dc\u06de-\u06e8\u06ea-ۼۿܐ-\u074aݍ-ޱ߀-ߵߺ\u0901-ह\u093c-\u094dॐ-\u0954क़-\u0963०-९ॱ-ॲॻ-ॿ\u0981-\u0983অ-ঌএ-ঐও-নপ-রলশ-হ\u09bc-\u09c4\u09c7-\u09c8\u09cb-ৎ\u09d7ড়-ঢ়য়-\u09e3০-ৱ\u0a01-\u0a03ਅ-ਊਏ-ਐਓ-ਨਪ-ਰਲ-ਲ਼ਵ-ਸ਼ਸ-ਹ\u0a3c\u0a3e-\u0a42\u0a47-\u0a48\u0a4b-\u0a4d\u0a51ਖ਼-ੜਫ਼੦-\u0a75\u0a81-\u0a83અ-ઍએ-ઑઓ-નપ-રલ-ળવ-હ\u0abc-\u0ac5\u0ac7-\u0ac9\u0acb-\u0acdૐૠ-\u0ae3૦-૯\u0b01-\u0b03ଅ-ଌଏ-ଐଓ-ନପ-ରଲ-ଳଵ-ହ\u0b3c-\u0b44\u0b47-\u0b48\u0b4b-\u0b4d\u0b56-\u0b57ଡ଼-ଢ଼ୟ-\u0b63୦-୯ୱ\u0b82-ஃஅ-ஊஎ-ஐஒ-கங-சஜஞ-டண-தந-பம-ஹ\u0bbe-\u0bc2\u0bc6-\u0bc8\u0bca-\u0bcdௐ\u0bd7௦-௯\u0c01-\u0c03అ-ఌఎ-ఐఒ-నప-ళవ-హఽ-\u0c44\u0c46-\u0c48\u0c4a-\u0c4d\u0c55-\u0c56ౘ-ౙౠ-\u0c63౦-౯\u0c82-\u0c83ಅ-ಌಎ-ಐಒ-ನಪ-ಳವ-ಹ\u0cbc-\u0cc4\u0cc6-\u0cc8\u0cca-\u0ccd\u0cd5-\u0cd6ೞೠ-\u0ce3೦-೯\u0d02-\u0d03അ-ഌഎ-ഐഒ-നപ-ഹഽ-\u0d44\u0d46-\u0d48\u0d4a-\u0d4d\u0d57ൠ-\u0d63൦-൯ൺ-ൿ\u0d82-\u0d83අ-ඖක-නඳ-රලව-ෆ\u0dca\u0dcf-\u0dd4\u0dd6\u0dd8-\u0ddf\u0df2-\u0df3ก-\u0e3aเ-\u0e4e๐-๙ກ-ຂຄງ-ຈຊຍດ-ທນ-ຟມ-ຣລວສ-ຫອ-\u0eb9\u0ebb-ຽເ-ໄໆ\u0ec8-\u0ecd໐-໙ໜ-ໝༀ\u0f18-\u0f19༠-༩\u0f35\u0f37\u0f39\u0f3e-ཇཉ-ཬ\u0f71-\u0f84\u0f86-ྋ\u0f90-\u0f97\u0f99-\u0fbc\u0fc6က-၉ၐ-႙Ⴀ-Ⴥა-ჺჼᄀ-ᅙᅟ-ᆢᆨ-ᇹሀ-ቈቊ-ቍቐ-ቖቘቚ-ቝበ-ኈኊ-ኍነ-ኰኲ-ኵኸ-ኾዀዂ-ዅወ-ዖዘ-ጐጒ-ጕጘ-ፚ\u135fᎀ-ᎏᎠ-Ᏼᐁ-ᙬᙯ-ᙶᚁ-ᚚᚠ-ᛪ\u16ee-\u16f0ᜀ-ᜌᜎ-\u1714ᜠ-\u1734ᝀ-\u1753ᝠ-ᝬᝮ-ᝰ\u1772-\u1773ក-ឳ\u17b6-\u17d3ៗៜ-\u17dd០-៩\u180b-\u180d᠐-᠙ᠠ-ᡷᢀ-ᢪᤀ-ᤜ\u1920-\u192b\u1930-\u193b᥆-ᥭᥰ-ᥴ-ᦩ\u19b0-\u19c9᧐-᧙ᨀ-\u1a1b\u1b00-ᭋ᭐-᭙\u1b6b-\u1b73\u1b80-\u1baaᮮ-᮹ᰀ-\u1c37᱀-᱉ᱍ-ᱽᴀ-\u1de6\u1dfe-ἕἘ-Ἕἠ-ὅὈ-Ὅὐ-ὗὙὛὝὟ-ώᾀ-ᾴᾶ-ᾼιῂ-ῄῆ-ῌῐ-ΐῖ-Ίῠ-Ῥῲ-ῴῶ-ῼ‿-⁀⁔ⁱⁿₐ-ₔ\u20d0-\u20f0ℂℇℊ-ℓℕℙ-ℝℤΩℨK-ℭℯ-ℹℼ-ℿⅅ-ⅉⅎ\u2160-\u2188Ⰰ-Ⱞⰰ-ⱞⱠ-Ɐⱱ-ⱽⲀ-ⳤⴀ-ⴥⴰ-ⵥⵯⶀ-ⶖⶠ-ⶦⶨ-ⶮⶰ-ⶶⶸ-ⶾⷀ-ⷆⷈ-ⷎⷐ-ⷖⷘ-ⷞ\u2de0-\u2dffⸯ々-\u3007\u3021-\u302f〱-〵\u3038-〼ぁ-ゖ\u3099-\u309aゝ-ゟァ-ヺー-ヿㄅ-ㄭㄱ-ㆎㆠ-ㆷㇰ-ㇿ㐀-䶵一-鿃ꀀ-ꒌꔀ-ꘌꘐ-ꘫꙀ-ꙟꙢ-\ua672\ua67c-\ua67dꙿ-ꚗꜗ-ꜟꜢ-ꞈꞋ-ꞌꟻ-\ua827ꡀ-ꡳ\ua880-\ua8c4꣐-꣙꤀-\ua92dꤰ-\ua953ꨀ-\uaa36ꩀ-\uaa4d꩐-꩙가-힣豈-鶴侮-頻並-龎ﬀ-ﬆﬓ-ﬗיִ-ﬨשׁ-זּטּ-לּמּנּ-סּףּ-פּצּ-ﮱﯓ-ﴽﵐ-ﶏﶒ-ﷇﷰ-ﷻ\ufe00-\ufe0f\ufe20-\ufe26︳-︴﹍-﹏ﹰ-ﹴﹶ-ﻼ０-９Ａ-Ｚ＿ａ-ｚｦ-ﾾￂ-ￇￊ-ￏￒ-ￗￚ-ￜ]|[\ud840-\ud868][\udc00-\udfff]|\ud800[\udc00-\udc0b\udc0d-\udc26\udc28-\udc3a\udc3c-\udc3d\udc3f-\udc4d\udc50-\udc5d\udc80-\udcfa\udd40-\udd74\uddfd\ude80-\ude9c\udea0-\uded0\udf00-\udf1e\udf30-\udf4a\udf80-\udf9d\udfa0-\udfc3\udfc8-\udfcf\udfd1-\udfd5]|\ud801[\udc00-\udc9d\udca0-\udca9]|\ud802[\udc00-\udc05\udc08\udc0a-\udc35\udc37-\udc38\udc3c\udc3f\udd00-\udd15\udd20-\udd39\ude00-\ude03\ude05-\ude06\ude0c-\ude13\ude15-\ude17\ude19-\ude33\ude38-\ude3a\ude3f]|\ud808[\udc00-\udf6e]|\ud809[\udc00-\udc62]|\ud834[\udd65-\udd69\udd6d-\udd72\udd7b-\udd82\udd85-\udd8b\uddaa-\uddad\ude42-\ude44]|\ud835[\udc00-\udc54\udc56-\udc9c\udc9e-\udc9f\udca2\udca5-\udca6\udca9-\udcac\udcae-\udcb9\udcbb\udcbd-\udcc3\udcc5-\udd05\udd07-\udd0a\udd0d-\udd14\udd16-\udd1c\udd1e-\udd39\udd3b-\udd3e\udd40-\udd44\udd46\udd4a-\udd50\udd52-\udea5\udea8-\udec0\udec2-\udeda\udedc-\udefa\udefc-\udf14\udf16-\udf34\udf36-\udf4e\udf50-\udf6e\udf70-\udf88\udf8a-\udfa8\udfaa-\udfc2\udfc4-\udfcb\udfce-\udfff]|\ud869[\udc00-\uded6]|\ud87e[\udc00-\ude1d]|\udb40[\udd00-\uddef])'
++    else
++      WORD_RE = '\p{Word}'
++    end
++    ATTR_NAME = "^\\s*(#{WORD_RE}(?:#{WORD_RE}|:|-)*)"
      QUOTED_ATTR_RE = /#{ATTR_NAME}\s*=(=?)\s*("|')/
      CODE_ATTR_RE = /#{ATTR_NAME}\s*=(=?)\s*/
  
-@@ -136,11 +137,11 @@ module Slim
+@@ -136,11 +142,11 @@ module Slim
      def get_indent(line)
        # Figure out the indentation. Kinda ugly/slow way to support tabs,
        # but remember that this is only done at parsing time.
@@ -240,7 +245,7 @@ index 611f077..1f4c5f3 100644
          @stacks.last << [:newline]
          return
        end
-@@ -151,7 +152,7 @@ module Slim
+@@ -151,7 +157,7 @@ module Slim
        @indents << indent if @indents.empty?
  
        # Remove the indentation
@@ -249,7 +254,7 @@ index 611f077..1f4c5f3 100644
  
        # If there's more stacks than indents, it means that the previous
        # line is expecting this line to be indented.
-@@ -190,52 +191,54 @@ module Slim
+@@ -190,52 +196,54 @@ module Slim
  
      def parse_line_indicators
        case @line
@@ -284,7 +289,7 @@ index 611f077..1f4c5f3 100644
          # Found a code block.
          # We expect the line to be broken or the next line to be indented.
 -        @line.slice!(0)
-+        @line = @line.slice(1..-1)
++	@line = @line.slice(1..-1)
          block = [:multi]
          @stacks.last << [:slim, :control, parse_broken_line, block]
          @stacks << block
@@ -295,18 +300,18 @@ index 611f077..1f4c5f3 100644
          @line = $'
 -        trailing_ws = $2.include?('>')
 -        if $2.include?('\'')
-+        a = $1 || ''
-+        b = $2 || ''
-+        trailing_ws = b.include?('>')
-+        if b.include?('\'')
++	a = $1 || ''
++	b = $2 || ''
++	trailing_ws = b.include?('>')
++	if b.include?('\'')
            deprecated_syntax '=\' for trailing whitespace is deprecated in favor of =>'
            trailing_ws = true
          end
          block = [:multi]
 -        @stacks.last << [:static, ' '] if $2.include?('<')
 -        @stacks.last << [:slim, :output, $1.empty?, parse_broken_line, block]
-+        @stacks.last << [:static, ' '] if b.include?('<')
-+        @stacks.last << [:slim, :output, a.empty?, parse_broken_line, block]
++	@stacks.last << [:static, ' '] if b.include?('<')
++	@stacks.last << [:slim, :output, a.empty?, parse_broken_line, block]
          @stacks.last << [:static, ' '] if trailing_ws
          @stacks << block
        when @embedded_re
@@ -317,7 +322,7 @@ index 611f077..1f4c5f3 100644
          # Found doctype declaration
          @stacks.last << [:html, :doctype, $'.strip]
        when @tag_re
-@@ -253,7 +256,7 @@ module Slim
+@@ -253,7 +261,7 @@ module Slim
      end
  
      def parse_comment_block
@@ -326,25 +331,25 @@ index 611f077..1f4c5f3 100644
          next_line
          @stacks.last << [:newline]
        end
-@@ -269,7 +272,7 @@ module Slim
+@@ -269,7 +277,7 @@ module Slim
  
        empty_lines = 0
        until @lines.empty?
 -        if @lines.first =~ /\A\s*\Z/
-+        if @lines.first =~ /^\s*$/
++	if @lines.first =~ /^\s*$/
            next_line
            result << [:newline]
            empty_lines += 1 if text_indent
-@@ -283,7 +286,7 @@ module Slim
+@@ -283,7 +291,7 @@ module Slim
            end
  
            next_line
 -          @line.lstrip!
-+          @line = @line.lstrip
++	  @line = @line.lstrip
  
            # The text block lines must be at least indented
            # as deep as the first line.
-@@ -304,16 +307,16 @@ module Slim
+@@ -304,16 +312,16 @@ module Slim
  
      def parse_broken_line
        broken_line = @line.strip
@@ -352,7 +357,7 @@ index 611f077..1f4c5f3 100644
 +      while broken_line =~ /[,\\]$/
          expect_next_line
 -        broken_line << "\n" << @line
-+        broken_line += "\n" + @line
++	broken_line += "\n" + @line
        end
        broken_line
      end
@@ -360,11 +365,11 @@ index 611f077..1f4c5f3 100644
      def parse_tag(tag)
        if @tag_shortcut[tag]
 -        @line.slice!(0, tag.size) unless @attr_shortcut[tag]
-+        @line = @line.slice(tag.size..-1) unless @attr_shortcut[tag]
++	@line = @line.slice(tag.size..-1) unless @attr_shortcut[tag]
          tag = @tag_shortcut[tag]
        end
  
-@@ -327,7 +330,7 @@ module Slim
+@@ -327,7 +335,7 @@ module Slim
          @line = $'
        end
  
@@ -373,7 +378,7 @@ index 611f077..1f4c5f3 100644
        @line = $'
        trailing_ws = $&.include?('>')
        if $&.include?('\'')
-@@ -346,7 +349,7 @@ module Slim
+@@ -346,7 +354,7 @@ module Slim
        @stacks.last << [:static, ' '] if trailing_ws
  
        case @line
@@ -382,7 +387,7 @@ index 611f077..1f4c5f3 100644
          # Block expansion
          @line = $'
          if @line =~ @embedded_re
-@@ -361,7 +364,7 @@ module Slim
+@@ -361,7 +369,7 @@ module Slim
            parse_tag($&)
            @stacks.delete_at(i)
          end
@@ -391,7 +396,7 @@ index 611f077..1f4c5f3 100644
          # Handle output code
          @line = $'
          trailing_ws2 = $2.include?('>')
-@@ -374,16 +377,16 @@ module Slim
+@@ -374,16 +382,16 @@ module Slim
          tag << [:slim, :output, $1 != '=', parse_broken_line, block]
          @stacks.last << [:static, ' '] if !trailing_ws && trailing_ws2
          @stacks << block
@@ -411,20 +416,20 @@ index 611f077..1f4c5f3 100644
          # Text content
          tag << [:slim, :text, :inline, parse_text_block($', @orig_line.size - $'.size)]
        end
-@@ -398,26 +401,30 @@ module Slim
+@@ -398,26 +406,30 @@ module Slim
        end
  
        if delimiter
 -        boolean_attr_re = /#{ATTR_NAME}(?=(\s|#{Regexp.escape delimiter}|\Z))/
 -        end_re = /\A\s*#{Regexp.escape delimiter}/
-+        boolean_attr_re = /#{ATTR_NAME}(?=(\s|#{Regexp.escape delimiter}|$))/
-+        end_re = /^\s*#{Regexp.escape delimiter}/
++	boolean_attr_re = /#{ATTR_NAME}(?=(\s|#{Regexp.escape delimiter}|$))/
++	end_re = /^\s*#{Regexp.escape delimiter}/
        end
  
        while true
          case @line
 -        when /\A\s*\*(?=[^\s]+)/
-+        when /^\s*\*(?=[^\s]+)/
++	when /^\s*\*(?=[^\s]+)/
            # Splat attribute
            @line = $'
            attributes << [:slim, :splat, parse_ruby_code(delimiter)]
@@ -433,32 +438,32 @@ index 611f077..1f4c5f3 100644
            @line = $'
 -          attributes << [:html, :attr, $1,
 -                         [:escape, $2.empty?, [:slim, :interpolate, parse_quoted_attribute($3)]]]
-+          a = $1 || ''
-+          b = $2 || ''
-+          attributes << [:html, :attr, a,
-+                         [:escape, b.empty?, [:slim, :interpolate, parse_quoted_attribute($3)]]]
++	  a = $1 || ''
++	  b = $2 || ''
++	  attributes << [:html, :attr, a,
++			 [:escape, b.empty?, [:slim, :interpolate, parse_quoted_attribute($3)]]]
          when CODE_ATTR_RE
            # Value is ruby code
            @line = $'
 -          name = $1
 -          escape = $2.empty?
-+          a = $1 || ''
-+          b = $2 || ''
-+          name = a
-+          escape = b.empty?
++	  a = $1 || ''
++	  b = $2 || ''
++	  name = a
++	  escape = b.empty?
            value = parse_ruby_code(delimiter)
            syntax_error!('Invalid empty attribute') if value.empty?
            attributes << [:html, :attr, name, [:slim, :attrvalue, escape, value]]
-@@ -435,7 +442,7 @@ module Slim
+@@ -435,7 +447,7 @@ module Slim
              break
            else
              # Found something where an attribute should be
 -            @line.lstrip!
-+            @line = @line.lstrip
++	    @line = @line.lstrip
              syntax_error!('Expected attribute') unless @line.empty?
  
              # Attributes span multiple lines
-@@ -451,11 +458,11 @@ module Slim
+@@ -451,11 +463,11 @@ module Slim
        code, count, delimiter, close_delimiter = '', 0, nil, nil
  
        # Attribute ends with space or attribute delimiter
@@ -468,41 +473,41 @@ index 611f077..1f4c5f3 100644
        until @line.empty? || (count == 0 && @line =~ end_re)
 -        if @line =~ /\A[,\\]\Z/
 -          code << @line << "\n"
-+        if @line =~ /^[,\\]$/
-+          code += @line + "\n"
++	if @line =~ /^[,\\]$/
++	  code += @line + "\n"
            expect_next_line
          else
            if count > 0
-@@ -468,7 +475,9 @@ module Slim
+@@ -468,7 +480,9 @@ module Slim
              count = 1
              delimiter, close_delimiter = $&, @code_attr_delims[$&]
            end
 -          code << @line.slice!(0)
-+          firstChar = @line.slice(0)
-+          @line = @line.slice(1..-1)
-+          code += firstChar
++	  firstChar = @line.slice(0)
++	  @line = @line.slice(1..-1)
++	  code += firstChar
          end
        end
        syntax_error!("Expected closing delimiter #{close_delimiter}") if count != 0
-@@ -479,8 +488,8 @@ module Slim
+@@ -479,8 +493,8 @@ module Slim
        value, count = '', 0
  
        until count == 0 && @line[0] == quote[0]
 -        if @line =~ /\A(\\)?\Z/
 -          value << ($1 ? ' ' : "\n")
-+        if @line =~ /^(\\)?$/
-+          value += ($1 ? ' ' : "\n")
++	if @line =~ /^(\\)?$/
++	  value += ($1 ? ' ' : "\n")
            expect_next_line
          else
            if @line[0] == ?{
-@@ -488,12 +497,14 @@ module Slim
+@@ -488,12 +502,14 @@ module Slim
            elsif @line[0] == ?}
              count -= 1
            end
 -          value << @line.slice!(0)
-+          firstChar = @line.slice(0)
-+          @line = @line.slice(1..-1)
-+          value += firstChar
++	  firstChar = @line.slice(0)
++	  @line = @line.slice(1..-1)
++	  value += firstChar
          end
        end
  
@@ -512,7 +517,7 @@ index 611f077..1f4c5f3 100644
  
        value
      end
-@@ -521,7 +532,7 @@ module Slim
+@@ -521,7 +537,7 @@ module Slim
  
      def expect_next_line
        next_line || syntax_error!('Unexpected end of file')
@@ -564,7 +569,7 @@ index ad7536d..bb7a0e4 100644
      end
    end
 diff --git a/lib/slim/smart/parser.rb b/lib/slim/smart/parser.rb
-index 76dc250..dbeee58 100644
+index 76dc250..3a122f2 100644
 --- a/lib/slim/smart/parser.rb
 +++ b/lib/slim/smart/parser.rb
 @@ -8,14 +8,14 @@ module Slim
@@ -575,15 +580,15 @@ index 76dc250..dbeee58 100644
 -        @attr_shortcut_re = /\A(#{attr_keys}+)((?:\p{Word}|-)*)/
 -        tag_keys = Regexp.union((@tag_shortcut.keys - @attr_shortcut.keys).sort_by {|k| -k.size } )
 -        @tag_re = /\A(?:#{attr_keys}(?=-*\p{Word})|#{tag_keys}|\*(?=[^\s]+)|(#{word_re}(?:#{word_re}|:|-)*#{word_re}|#{word_re}+))/
-+        attr_keys = @attr_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
-+        @attr_shortcut_re = /^(#{attr_keys}+)((?:\p{Word}|-)*)/
-+        tag_keys = (@tag_shortcut.keys - @attr_shortcut.keys).sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
-+        @tag_re = /^(?:#{attr_keys}(?=-*\p{Word})|#{tag_keys}|\*(?=[^\s]+)|(#{word_re}(?:#{word_re}|:|-)*#{word_re}|#{word_re}+))/
++	attr_keys = @attr_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
++	@attr_shortcut_re = /^(#{attr_keys}+)((?:\p{Word}|-)*)/
++	tag_keys = (@tag_shortcut.keys - @attr_shortcut.keys).sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
++	@tag_re = /^(?:#{attr_keys}(?=-*\p{Word})|#{tag_keys}|\*(?=[^\s]+)|(#{word_re}(?:#{word_re}|:|-)*#{word_re}|#{word_re}+))/
        end
  
        def unknown_line_indicator
 -        if @line =~ /\A>( ?)/
-+        if @line =~ /^>( ?)/
++	if @line =~ /^>( ?)/
            # Found explicit text block.
            @stacks.last << [:slim, :text, :explicit, parse_text_block($', @indents.last + $1.size + 1)]
          else

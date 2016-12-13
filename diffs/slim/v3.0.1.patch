@@ -1,22 +1,22 @@
-From c26cb92fc9dfe7909aa5d2a6229a54cdbae59db4 Mon Sep 17 00:00:00 2001
+From e3a98ff7b7a156b18a9a81982b606e218b5c144c Mon Sep 17 00:00:00 2001
 From: Patrick Kettner <patrickkettner@gmail.com>
-Date: Thu, 24 Nov 2016 20:59:51 -0800
+Date: Mon, 12 Dec 2016 16:50:52 -0800
 Subject: [PATCH] .
 
 ---
  lib/slim/controls.rb          |   2 +-
  lib/slim/do_inserter.rb       |   2 +-
  lib/slim/embedded.rb          |   4 +-
- lib/slim/end_inserter.rb      |   6 +--
+ lib/slim/end_inserter.rb      |   6 +-
  lib/slim/engine.rb            |   3 +-
  lib/slim/include.rb           |   4 +-
  lib/slim/interpolation.rb     |  19 ++++---
  lib/slim/logic_less/filter.rb |   2 +-
- lib/slim/parser.rb            | 121 +++++++++++++++++++++++-------------------
+ lib/slim/parser.rb            | 126 ++++++++++++++++++++++++------------------
  lib/slim/smart/escaper.rb     |   4 +-
- lib/slim/smart/filter.rb      |   6 +--
- lib/slim/smart/parser.rb      |  12 ++---
- 12 files changed, 100 insertions(+), 85 deletions(-)
+ lib/slim/smart/filter.rb      |   6 +-
+ lib/slim/smart/parser.rb      |  18 +++---
+ 12 files changed, 110 insertions(+), 86 deletions(-)
 
 diff --git a/lib/slim/controls.rb b/lib/slim/controls.rb
 index 9f2d2e6..a05f445 100644
@@ -124,7 +124,7 @@ index 59862bd..69deb19 100644
        else
          [:slim, :interpolate, content]
 diff --git a/lib/slim/interpolation.rb b/lib/slim/interpolation.rb
-index b2a6b37..469c9c2 100644
+index b2a6b37..63fac43 100644
 --- a/lib/slim/interpolation.rb
 +++ b/lib/slim/interpolation.rb
 @@ -12,24 +12,29 @@ module Slim
@@ -135,30 +135,30 @@ index b2a6b37..469c9c2 100644
 +      loop do
          case string
 -        when /\A\\#\{/
-+        when /^\\#\{/
++	when /^\\#\{/
            # Escaped interpolation
            block << [:static, '#{']
            string = $'
 -        when /\A#\{((?>[^{}]|(\{(?>[^{}]|\g<1>)*\}))*)\}/
-+        when /^#\{(([^{}]|(\{([^{}]|\1)*\}))*)\}/
++	when /^#\{(([^{}]|(\{([^{}]|\1)*\}))*)\}/
            # Interpolation
            string, code = $', $1
 -          escape = code !~ /\A\{.*\}\Z/
-+          escape = code !~ /^\{.*\}$/
++	  escape = code !~ /^\{.*\}$/
            block << [:slim, :output, escape, escape ? code : code[1..-2], [:multi]]
 -        when /\A([#\\]?[^#\\]*([#\\][^\\#\{][^#\\]*)*)/
-+        when /^([#\\]?[^#\\]*([#\\][^\\#\{][^#\\]*)*)/
++	when /^([#\\]?[^#\\]*([#\\][^\\#\{][^#\\]*)*)/
            # Static text
            block << [:static, $&]
            string = $'
          end
 -      end until string.empty?
 -      block
-+        if string.empty?
-+          break
-+        else
-+          next
-+        end
++	if string.empty?
++	  break
++	else
++	  next
++	end
 +      end
 +     block
      end
@@ -178,10 +178,22 @@ index 6e45220..f053c3c 100644
            'inverted_section'
          else
 diff --git a/lib/slim/parser.rb b/lib/slim/parser.rb
-index 59dbba3..a823162 100644
+index 59dbba3..dde8d49 100644
 --- a/lib/slim/parser.rb
 +++ b/lib/slim/parser.rb
-@@ -49,7 +49,7 @@ module Slim
+@@ -20,6 +20,11 @@ module Slim
+                      '#' => { attr: 'id' },
+                      '.' => { attr: 'class' }
+                    }
++if RUBY_PLATFORM.eql? 'opal'
++  WORD_RE = '(?:[0-9A-Z_a-zªµºÀ-ÖØ-öø-ˁˆ-ˑˠ-ˤˬˮ\u0300-ʹͶ-ͷͺ-ͽΆΈ-ΊΌΎ-ΡΣ-ϵϷ-ҁ\u0483-ԣԱ-Ֆՙա-և\u0591-\u05bd\u05bf\u05c1-\u05c2\u05c4-\u05c5\u05c7א-תװ-ײ\u0610-\u061aء-\u065e٠-٩ٮ-ۓە-\u06dc\u06de-\u06e8\u06ea-ۼۿܐ-\u074aݍ-ޱ߀-ߵߺ\u0901-ह\u093c-\u094dॐ-\u0954क़-\u0963०-९ॱ-ॲॻ-ॿ\u0981-\u0983অ-ঌএ-ঐও-নপ-রলশ-হ\u09bc-\u09c4\u09c7-\u09c8\u09cb-ৎ\u09d7ড়-ঢ়য়-\u09e3০-ৱ\u0a01-\u0a03ਅ-ਊਏ-ਐਓ-ਨਪ-ਰਲ-ਲ਼ਵ-ਸ਼ਸ-ਹ\u0a3c\u0a3e-\u0a42\u0a47-\u0a48\u0a4b-\u0a4d\u0a51ਖ਼-ੜਫ਼੦-\u0a75\u0a81-\u0a83અ-ઍએ-ઑઓ-નપ-રલ-ળવ-હ\u0abc-\u0ac5\u0ac7-\u0ac9\u0acb-\u0acdૐૠ-\u0ae3૦-૯\u0b01-\u0b03ଅ-ଌଏ-ଐଓ-ନପ-ରଲ-ଳଵ-ହ\u0b3c-\u0b44\u0b47-\u0b48\u0b4b-\u0b4d\u0b56-\u0b57ଡ଼-ଢ଼ୟ-\u0b63୦-୯ୱ\u0b82-ஃஅ-ஊஎ-ஐஒ-கங-சஜஞ-டண-தந-பம-ஹ\u0bbe-\u0bc2\u0bc6-\u0bc8\u0bca-\u0bcdௐ\u0bd7௦-௯\u0c01-\u0c03అ-ఌఎ-ఐఒ-నప-ళవ-హఽ-\u0c44\u0c46-\u0c48\u0c4a-\u0c4d\u0c55-\u0c56ౘ-ౙౠ-\u0c63౦-౯\u0c82-\u0c83ಅ-ಌಎ-ಐಒ-ನಪ-ಳವ-ಹ\u0cbc-\u0cc4\u0cc6-\u0cc8\u0cca-\u0ccd\u0cd5-\u0cd6ೞೠ-\u0ce3೦-೯\u0d02-\u0d03അ-ഌഎ-ഐഒ-നപ-ഹഽ-\u0d44\u0d46-\u0d48\u0d4a-\u0d4d\u0d57ൠ-\u0d63൦-൯ൺ-ൿ\u0d82-\u0d83අ-ඖක-නඳ-රලව-ෆ\u0dca\u0dcf-\u0dd4\u0dd6\u0dd8-\u0ddf\u0df2-\u0df3ก-\u0e3aเ-\u0e4e๐-๙ກ-ຂຄງ-ຈຊຍດ-ທນ-ຟມ-ຣລວສ-ຫອ-\u0eb9\u0ebb-ຽເ-ໄໆ\u0ec8-\u0ecd໐-໙ໜ-ໝༀ\u0f18-\u0f19༠-༩\u0f35\u0f37\u0f39\u0f3e-ཇཉ-ཬ\u0f71-\u0f84\u0f86-ྋ\u0f90-\u0f97\u0f99-\u0fbc\u0fc6က-၉ၐ-႙Ⴀ-Ⴥა-ჺჼᄀ-ᅙᅟ-ᆢᆨ-ᇹሀ-ቈቊ-ቍቐ-ቖቘቚ-ቝበ-ኈኊ-ኍነ-ኰኲ-ኵኸ-ኾዀዂ-ዅወ-ዖዘ-ጐጒ-ጕጘ-ፚ\u135fᎀ-ᎏᎠ-Ᏼᐁ-ᙬᙯ-ᙶᚁ-ᚚᚠ-ᛪ\u16ee-\u16f0ᜀ-ᜌᜎ-\u1714ᜠ-\u1734ᝀ-\u1753ᝠ-ᝬᝮ-ᝰ\u1772-\u1773ក-ឳ\u17b6-\u17d3ៗៜ-\u17dd០-៩\u180b-\u180d᠐-᠙ᠠ-ᡷᢀ-ᢪᤀ-ᤜ\u1920-\u192b\u1930-\u193b᥆-ᥭᥰ-ᥴ-ᦩ\u19b0-\u19c9᧐-᧙ᨀ-\u1a1b\u1b00-ᭋ᭐-᭙\u1b6b-\u1b73\u1b80-\u1baaᮮ-᮹ᰀ-\u1c37᱀-᱉ᱍ-ᱽᴀ-\u1de6\u1dfe-ἕἘ-Ἕἠ-ὅὈ-Ὅὐ-ὗὙὛὝὟ-ώᾀ-ᾴᾶ-ᾼιῂ-ῄῆ-ῌῐ-ΐῖ-Ίῠ-Ῥῲ-ῴῶ-ῼ‿-⁀⁔ⁱⁿₐ-ₔ\u20d0-\u20f0ℂℇℊ-ℓℕℙ-ℝℤΩℨK-ℭℯ-ℹℼ-ℿⅅ-ⅉⅎ\u2160-\u2188Ⰰ-Ⱞⰰ-ⱞⱠ-Ɐⱱ-ⱽⲀ-ⳤⴀ-ⴥⴰ-ⵥⵯⶀ-ⶖⶠ-ⶦⶨ-ⶮⶰ-ⶶⶸ-ⶾⷀ-ⷆⷈ-ⷎⷐ-ⷖⷘ-ⷞ\u2de0-\u2dffⸯ々-\u3007\u3021-\u302f〱-〵\u3038-〼ぁ-ゖ\u3099-\u309aゝ-ゟァ-ヺー-ヿㄅ-ㄭㄱ-ㆎㆠ-ㆷㇰ-ㇿ㐀-䶵一-鿃ꀀ-ꒌꔀ-ꘌꘐ-ꘫꙀ-ꙟꙢ-\ua672\ua67c-\ua67dꙿ-ꚗꜗ-ꜟꜢ-ꞈꞋ-ꞌꟻ-\ua827ꡀ-ꡳ\ua880-\ua8c4꣐-꣙꤀-\ua92dꤰ-\ua953ꨀ-\uaa36ꩀ-\uaa4d꩐-꩙가-힣豈-鶴侮-頻並-龎ﬀ-ﬆﬓ-ﬗיִ-ﬨשׁ-זּטּ-לּמּנּ-סּףּ-פּצּ-ﮱﯓ-ﴽﵐ-ﶏﶒ-ﷇﷰ-ﷻ\ufe00-\ufe0f\ufe20-\ufe26︳-︴﹍-﹏ﹰ-ﹴﹶ-ﻼ０-９Ａ-Ｚ＿ａ-ｚｦ-ﾾￂ-ￇￊ-ￏￒ-ￗￚ-ￜ]|[\ud840-\ud868][\udc00-\udfff]|\ud800[\udc00-\udc0b\udc0d-\udc26\udc28-\udc3a\udc3c-\udc3d\udc3f-\udc4d\udc50-\udc5d\udc80-\udcfa\udd40-\udd74\uddfd\ude80-\ude9c\udea0-\uded0\udf00-\udf1e\udf30-\udf4a\udf80-\udf9d\udfa0-\udfc3\udfc8-\udfcf\udfd1-\udfd5]|\ud801[\udc00-\udc9d\udca0-\udca9]|\ud802[\udc00-\udc05\udc08\udc0a-\udc35\udc37-\udc38\udc3c\udc3f\udd00-\udd15\udd20-\udd39\ude00-\ude03\ude05-\ude06\ude0c-\ude13\ude15-\ude17\ude19-\ude33\ude38-\ude3a\ude3f]|\ud808[\udc00-\udf6e]|\ud809[\udc00-\udc62]|\ud834[\udd65-\udd69\udd6d-\udd72\udd7b-\udd82\udd85-\udd8b\uddaa-\uddad\ude42-\ude44]|\ud835[\udc00-\udc54\udc56-\udc9c\udc9e-\udc9f\udca2\udca5-\udca6\udca9-\udcac\udcae-\udcb9\udcbb\udcbd-\udcc3\udcc5-\udd05\udd07-\udd0a\udd0d-\udd14\udd16-\udd1c\udd1e-\udd39\udd3b-\udd3e\udd40-\udd44\udd46\udd4a-\udd50\udd52-\udea5\udea8-\udec0\udec2-\udeda\udedc-\udefa\udefc-\udf14\udf16-\udf34\udf36-\udf4e\udf50-\udf6e\udf70-\udf88\udf8a-\udfa8\udfaa-\udfc2\udfc4-\udfcb\udfce-\udfff]|\ud869[\udc00-\uded6]|\ud87e[\udc00-\ude1d]|\udb40[\udd00-\uddef])'
++else
++  WORD_RE = '\p{Word}'
++end
+ 
+     class SyntaxError < StandardError
+       attr_reader :error, :file, :line, :lineno, :column
+@@ -49,7 +54,7 @@ module Slim
        @code_attr_delims = options[:code_attr_delims]
        tabsize = options[:tabsize]
        if tabsize > 1
@@ -190,7 +202,7 @@ index 59dbba3..a823162 100644
          @tab = '\1' + ' ' * tabsize
        else
          @tab_re = "\t"
-@@ -61,19 +61,20 @@ module Slim
+@@ -61,19 +66,20 @@ module Slim
          @tag_shortcut[k] = v[:tag] || options[:default_tag]
          if v.include?(:attr)
            @attr_shortcut[k] = [v[:attr]].flatten
@@ -203,9 +215,9 @@ index 59dbba3..a823162 100644
 -      keys = Regexp.union @tag_shortcut.keys.sort_by {|k| -k.size }
 -      @tag_re = /\A(?:#{keys}|\*(?=[^\s]+)|(\p{Word}(?:\p{Word}|:|-)*\p{Word}|\p{Word}+))/
 +      keys = @attr_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
-+      @attr_shortcut_re = /^([#{keys}]+)((?:\w|-)*)/
++      @attr_shortcut_re = /^([#{keys}]+)((?:#{WORD_RE}|-)*)/
 +      keys = @tag_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
-+      @tag_re = /^(?:#{keys}|\*(?=[^\s]+)|(\w(?:\w|:|-)*\w|\w+))/
++      @tag_re = /^(?:#{keys}|\*(?=[^\s]+)|(#{WORD_RE}(?:#{WORD_RE}|:|-)*#{WORD_RE}|#{WORD_RE}+))/
        keys = Regexp.escape @code_attr_delims.keys.join
 -      @code_attr_delims_re = /\A[#{keys}]/
 +      @code_attr_delims_re = /^[#{keys}]/
@@ -220,7 +232,7 @@ index 59dbba3..a823162 100644
        @quoted_attr_re = /#{@attr_name}\s*=(=?)\s*("|')/
        @code_attr_re = /#{@attr_name}\s*=(=?)\s*/
      end
-@@ -134,11 +135,11 @@ module Slim
+@@ -134,11 +140,11 @@ module Slim
      def get_indent(line)
        # Figure out the indentation. Kinda ugly/slow way to support tabs,
        # but remember that this is only done at parsing time.
@@ -234,7 +246,7 @@ index 59dbba3..a823162 100644
          @stacks.last << [:newline]
          return
        end
-@@ -149,7 +150,7 @@ module Slim
+@@ -149,7 +155,7 @@ module Slim
        @indents << indent if @indents.empty?
  
        # Remove the indentation
@@ -243,7 +255,7 @@ index 59dbba3..a823162 100644
  
        # If there's more stacks than indents, it means that the previous
        # line is expecting this line to be indented.
-@@ -188,52 +189,54 @@ module Slim
+@@ -188,52 +194,54 @@ module Slim
  
      def parse_line_indicators
        case @line
@@ -311,7 +323,7 @@ index 59dbba3..a823162 100644
          # Found doctype declaration
          @stacks.last << [:html, :doctype, $'.strip]
        when @tag_re
-@@ -251,7 +254,7 @@ module Slim
+@@ -251,7 +259,7 @@ module Slim
      end
  
      def parse_comment_block
@@ -320,7 +332,7 @@ index 59dbba3..a823162 100644
          next_line
          @stacks.last << [:newline]
        end
-@@ -267,7 +270,7 @@ module Slim
+@@ -267,7 +275,7 @@ module Slim
  
        empty_lines = 0
        until @lines.empty?
@@ -329,7 +341,7 @@ index 59dbba3..a823162 100644
            next_line
            result << [:newline]
            empty_lines += 1 if text_indent
-@@ -281,7 +284,7 @@ module Slim
+@@ -281,7 +289,7 @@ module Slim
            end
  
            next_line
@@ -338,7 +350,7 @@ index 59dbba3..a823162 100644
  
            # The text block lines must be at least indented
            # as deep as the first line.
-@@ -302,16 +305,16 @@ module Slim
+@@ -302,16 +310,16 @@ module Slim
  
      def parse_broken_line
        broken_line = @line.strip
@@ -358,7 +370,7 @@ index 59dbba3..a823162 100644
          tag = @tag_shortcut[tag]
        end
  
-@@ -325,7 +328,7 @@ module Slim
+@@ -325,7 +333,7 @@ module Slim
          @line = $'
        end
  
@@ -367,7 +379,7 @@ index 59dbba3..a823162 100644
        @line = $'
        trailing_ws = $&.include?('>')
        if $&.include?('\'')
-@@ -344,7 +347,7 @@ module Slim
+@@ -344,7 +352,7 @@ module Slim
        @stacks.last << [:static, ' '] if trailing_ws
  
        case @line
@@ -376,7 +388,7 @@ index 59dbba3..a823162 100644
          # Block expansion
          @line = $'
          if @line =~ @embedded_re
-@@ -359,7 +362,7 @@ module Slim
+@@ -359,7 +367,7 @@ module Slim
            parse_tag($&)
            @stacks.delete_at(i)
          end
@@ -385,7 +397,7 @@ index 59dbba3..a823162 100644
          # Handle output code
          @line = $'
          trailing_ws2 = $2.include?('>')
-@@ -372,16 +375,16 @@ module Slim
+@@ -372,16 +380,16 @@ module Slim
          tag << [:slim, :output, $1 != '=', parse_broken_line, block]
          @stacks.last << [:static, ' '] if !trailing_ws && trailing_ws2
          @stacks << block
@@ -405,7 +417,7 @@ index 59dbba3..a823162 100644
          # Text content
          tag << [:slim, :text, :inline, parse_text_block($', @orig_line.size - $'.size)]
        end
-@@ -396,26 +399,30 @@ module Slim
+@@ -396,26 +404,30 @@ module Slim
        end
  
        if delimiter
@@ -443,7 +455,7 @@ index 59dbba3..a823162 100644
            value = parse_ruby_code(delimiter)
            syntax_error!('Invalid empty attribute') if value.empty?
            attributes << [:html, :attr, name, [:slim, :attrvalue, escape, value]]
-@@ -433,7 +440,7 @@ module Slim
+@@ -433,7 +445,7 @@ module Slim
              break
            else
              # Found something where an attribute should be
@@ -452,7 +464,7 @@ index 59dbba3..a823162 100644
              syntax_error!('Expected attribute') unless @line.empty?
  
              # Attributes span multiple lines
-@@ -449,11 +456,11 @@ module Slim
+@@ -449,11 +461,11 @@ module Slim
        code, count, delimiter, close_delimiter = '', 0, nil, nil
  
        # Attribute ends with space or attribute delimiter
@@ -467,7 +479,7 @@ index 59dbba3..a823162 100644
            expect_next_line
          else
            if count > 0
-@@ -466,7 +473,9 @@ module Slim
+@@ -466,7 +478,9 @@ module Slim
              count = 1
              delimiter, close_delimiter = $&, @code_attr_delims[$&]
            end
@@ -478,7 +490,7 @@ index 59dbba3..a823162 100644
          end
        end
        syntax_error!("Expected closing delimiter #{close_delimiter}") if count != 0
-@@ -477,8 +486,8 @@ module Slim
+@@ -477,8 +491,8 @@ module Slim
        value, count = '', 0
  
        until count == 0 && @line[0] == quote[0]
@@ -489,7 +501,7 @@ index 59dbba3..a823162 100644
            expect_next_line
          else
            if @line[0] == ?{
-@@ -486,11 +495,13 @@ module Slim
+@@ -486,11 +500,13 @@ module Slim
            elsif @line[0] == ?}
              count -= 1
            end
@@ -505,7 +517,7 @@ index 59dbba3..a823162 100644
        value
      end
  
-@@ -517,7 +528,7 @@ module Slim
+@@ -517,7 +533,7 @@ module Slim
  
      def expect_next_line
        next_line || syntax_error!('Unexpected end of file')
@@ -557,30 +569,41 @@ index ad7536d..bb7a0e4 100644
      end
    end
 diff --git a/lib/slim/smart/parser.rb b/lib/slim/smart/parser.rb
-index 76dc250..3a122f2 100644
+index 76dc250..034f6bb 100644
 --- a/lib/slim/smart/parser.rb
 +++ b/lib/slim/smart/parser.rb
-@@ -8,14 +8,14 @@ module Slim
+@@ -1,4 +1,9 @@
+ # coding: utf-8
++if RUBY_PLATFORM.eql? 'opal'
++  WORD_RE = '(?:[0-9A-Z_a-zªµºÀ-ÖØ-öø-ˁˆ-ˑˠ-ˤˬˮ\u0300-ʹͶ-ͷͺ-ͽΆΈ-ΊΌΎ-ΡΣ-ϵϷ-ҁ\u0483-ԣԱ-Ֆՙա-և\u0591-\u05bd\u05bf\u05c1-\u05c2\u05c4-\u05c5\u05c7א-תװ-ײ\u0610-\u061aء-\u065e٠-٩ٮ-ۓە-\u06dc\u06de-\u06e8\u06ea-ۼۿܐ-\u074aݍ-ޱ߀-ߵߺ\u0901-ह\u093c-\u094dॐ-\u0954क़-\u0963०-९ॱ-ॲॻ-ॿ\u0981-\u0983অ-ঌএ-ঐও-নপ-রলশ-হ\u09bc-\u09c4\u09c7-\u09c8\u09cb-ৎ\u09d7ড়-ঢ়য়-\u09e3০-ৱ\u0a01-\u0a03ਅ-ਊਏ-ਐਓ-ਨਪ-ਰਲ-ਲ਼ਵ-ਸ਼ਸ-ਹ\u0a3c\u0a3e-\u0a42\u0a47-\u0a48\u0a4b-\u0a4d\u0a51ਖ਼-ੜਫ਼੦-\u0a75\u0a81-\u0a83અ-ઍએ-ઑઓ-નપ-રલ-ળવ-હ\u0abc-\u0ac5\u0ac7-\u0ac9\u0acb-\u0acdૐૠ-\u0ae3૦-૯\u0b01-\u0b03ଅ-ଌଏ-ଐଓ-ନପ-ରଲ-ଳଵ-ହ\u0b3c-\u0b44\u0b47-\u0b48\u0b4b-\u0b4d\u0b56-\u0b57ଡ଼-ଢ଼ୟ-\u0b63୦-୯ୱ\u0b82-ஃஅ-ஊஎ-ஐஒ-கங-சஜஞ-டண-தந-பம-ஹ\u0bbe-\u0bc2\u0bc6-\u0bc8\u0bca-\u0bcdௐ\u0bd7௦-௯\u0c01-\u0c03అ-ఌఎ-ఐఒ-నప-ళవ-హఽ-\u0c44\u0c46-\u0c48\u0c4a-\u0c4d\u0c55-\u0c56ౘ-ౙౠ-\u0c63౦-౯\u0c82-\u0c83ಅ-ಌಎ-ಐಒ-ನಪ-ಳವ-ಹ\u0cbc-\u0cc4\u0cc6-\u0cc8\u0cca-\u0ccd\u0cd5-\u0cd6ೞೠ-\u0ce3೦-೯\u0d02-\u0d03അ-ഌഎ-ഐഒ-നപ-ഹഽ-\u0d44\u0d46-\u0d48\u0d4a-\u0d4d\u0d57ൠ-\u0d63൦-൯ൺ-ൿ\u0d82-\u0d83අ-ඖක-නඳ-රලව-ෆ\u0dca\u0dcf-\u0dd4\u0dd6\u0dd8-\u0ddf\u0df2-\u0df3ก-\u0e3aเ-\u0e4e๐-๙ກ-ຂຄງ-ຈຊຍດ-ທນ-ຟມ-ຣລວສ-ຫອ-\u0eb9\u0ebb-ຽເ-ໄໆ\u0ec8-\u0ecd໐-໙ໜ-ໝༀ\u0f18-\u0f19༠-༩\u0f35\u0f37\u0f39\u0f3e-ཇཉ-ཬ\u0f71-\u0f84\u0f86-ྋ\u0f90-\u0f97\u0f99-\u0fbc\u0fc6က-၉ၐ-႙Ⴀ-Ⴥა-ჺჼᄀ-ᅙᅟ-ᆢᆨ-ᇹሀ-ቈቊ-ቍቐ-ቖቘቚ-ቝበ-ኈኊ-ኍነ-ኰኲ-ኵኸ-ኾዀዂ-ዅወ-ዖዘ-ጐጒ-ጕጘ-ፚ\u135fᎀ-ᎏᎠ-Ᏼᐁ-ᙬᙯ-ᙶᚁ-ᚚᚠ-ᛪ\u16ee-\u16f0ᜀ-ᜌᜎ-\u1714ᜠ-\u1734ᝀ-\u1753ᝠ-ᝬᝮ-ᝰ\u1772-\u1773ក-ឳ\u17b6-\u17d3ៗៜ-\u17dd០-៩\u180b-\u180d᠐-᠙ᠠ-ᡷᢀ-ᢪᤀ-ᤜ\u1920-\u192b\u1930-\u193b᥆-ᥭᥰ-ᥴ-ᦩ\u19b0-\u19c9᧐-᧙ᨀ-\u1a1b\u1b00-ᭋ᭐-᭙\u1b6b-\u1b73\u1b80-\u1baaᮮ-᮹ᰀ-\u1c37᱀-᱉ᱍ-ᱽᴀ-\u1de6\u1dfe-ἕἘ-Ἕἠ-ὅὈ-Ὅὐ-ὗὙὛὝὟ-ώᾀ-ᾴᾶ-ᾼιῂ-ῄῆ-ῌῐ-ΐῖ-Ίῠ-Ῥῲ-ῴῶ-ῼ‿-⁀⁔ⁱⁿₐ-ₔ\u20d0-\u20f0ℂℇℊ-ℓℕℙ-ℝℤΩℨK-ℭℯ-ℹℼ-ℿⅅ-ⅉⅎ\u2160-\u2188Ⰰ-Ⱞⰰ-ⱞⱠ-Ɐⱱ-ⱽⲀ-ⳤⴀ-ⴥⴰ-ⵥⵯⶀ-ⶖⶠ-ⶦⶨ-ⶮⶰ-ⶶⶸ-ⶾⷀ-ⷆⷈ-ⷎⷐ-ⷖⷘ-ⷞ\u2de0-\u2dffⸯ々-\u3007\u3021-\u302f〱-〵\u3038-〼ぁ-ゖ\u3099-\u309aゝ-ゟァ-ヺー-ヿㄅ-ㄭㄱ-ㆎㆠ-ㆷㇰ-ㇿ㐀-䶵一-鿃ꀀ-ꒌꔀ-ꘌꘐ-ꘫꙀ-ꙟꙢ-\ua672\ua67c-\ua67dꙿ-ꚗꜗ-ꜟꜢ-ꞈꞋ-ꞌꟻ-\ua827ꡀ-ꡳ\ua880-\ua8c4꣐-꣙꤀-\ua92dꤰ-\ua953ꨀ-\uaa36ꩀ-\uaa4d꩐-꩙가-힣豈-鶴侮-頻並-龎ﬀ-ﬆﬓ-ﬗיִ-ﬨשׁ-זּטּ-לּמּנּ-סּףּ-פּצּ-ﮱﯓ-ﴽﵐ-ﶏﶒ-ﷇﷰ-ﷻ\ufe00-\ufe0f\ufe20-\ufe26︳-︴﹍-﹏ﹰ-ﹴﹶ-ﻼ０-９Ａ-Ｚ＿ａ-ｚｦ-ﾾￂ-ￇￊ-ￏￒ-ￗￚ-ￜ]|[\ud840-\ud868][\udc00-\udfff]|\ud800[\udc00-\udc0b\udc0d-\udc26\udc28-\udc3a\udc3c-\udc3d\udc3f-\udc4d\udc50-\udc5d\udc80-\udcfa\udd40-\udd74\uddfd\ude80-\ude9c\udea0-\uded0\udf00-\udf1e\udf30-\udf4a\udf80-\udf9d\udfa0-\udfc3\udfc8-\udfcf\udfd1-\udfd5]|\ud801[\udc00-\udc9d\udca0-\udca9]|\ud802[\udc00-\udc05\udc08\udc0a-\udc35\udc37-\udc38\udc3c\udc3f\udd00-\udd15\udd20-\udd39\ude00-\ude03\ude05-\ude06\ude0c-\ude13\ude15-\ude17\ude19-\ude33\ude38-\ude3a\ude3f]|\ud808[\udc00-\udf6e]|\ud809[\udc00-\udc62]|\ud834[\udd65-\udd69\udd6d-\udd72\udd7b-\udd82\udd85-\udd8b\uddaa-\uddad\ude42-\ude44]|\ud835[\udc00-\udc54\udc56-\udc9c\udc9e-\udc9f\udca2\udca5-\udca6\udca9-\udcac\udcae-\udcb9\udcbb\udcbd-\udcc3\udcc5-\udd05\udd07-\udd0a\udd0d-\udd14\udd16-\udd1c\udd1e-\udd39\udd3b-\udd3e\udd40-\udd44\udd46\udd4a-\udd50\udd52-\udea5\udea8-\udec0\udec2-\udeda\udedc-\udefa\udefc-\udf14\udf16-\udf34\udf36-\udf4e\udf50-\udf6e\udf70-\udf88\udf8a-\udfa8\udfaa-\udfc2\udfc4-\udfcb\udfce-\udfff]|\ud869[\udc00-\uded6]|\ud87e[\udc00-\ude1d]|\udb40[\udd00-\uddef])'
++else
++  WORD_RE = '\p{Word}'
++end
+ 
+ module Slim
+   module Smart
+@@ -7,15 +12,14 @@ module Slim
+ 
        def initialize(opts = {})
          super
-         word_re = options[:implicit_text] ? '[_a-z0-9]' : '\p{Word}'
+-        word_re = options[:implicit_text] ? '[_a-z0-9]' : '\p{Word}'
 -        attr_keys = Regexp.union(@attr_shortcut.keys.sort_by {|k| -k.size } )
 -        @attr_shortcut_re = /\A(#{attr_keys}+)((?:\p{Word}|-)*)/
 -        tag_keys = Regexp.union((@tag_shortcut.keys - @attr_shortcut.keys).sort_by {|k| -k.size } )
 -        @tag_re = /\A(?:#{attr_keys}(?=-*\p{Word})|#{tag_keys}|\*(?=[^\s]+)|(#{word_re}(?:#{word_re}|:|-)*#{word_re}|#{word_re}+))/
-+	attr_keys = @attr_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
-+	@attr_shortcut_re = /^(#{attr_keys}+)((?:\p{Word}|-)*)/
-+	tag_keys = (@tag_shortcut.keys - @attr_shortcut.keys).sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
-+	@tag_re = /^(?:#{attr_keys}(?=-*\p{Word})|#{tag_keys}|\*(?=[^\s]+)|(#{word_re}(?:#{word_re}|:|-)*#{word_re}|#{word_re}+))/
++        attr_keys = @attr_shortcut.keys.sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
++        @attr_shortcut_re = /^(#{attr_keys}+)((?:#{WORD_RE}|-)*)/
++        tag_keys = (@tag_shortcut.keys - @attr_shortcut.keys).sort_by {|k| -k.size }.map {|v| Regexp.escape v}.join('|')
++        @tag_re = /^(?:#{attr_keys}(?=-*#{WORD_RE})|#{tag_keys}|\*(?=[^\s]+)|(#{WORD_RE}(?:#{WORD_RE}|:|-)*#{WORD_RE}|#{WORD_RE}+))/
        end
  
        def unknown_line_indicator
 -        if @line =~ /\A>( ?)/
-+	if @line =~ /^>( ?)/
++        if @line =~ /^>( ?)/
            # Found explicit text block.
            @stacks.last << [:slim, :text, :explicit, parse_text_block($', @indents.last + $1.size + 1)]
          else
-@@ -25,7 +25,7 @@ module Slim
+@@ -25,7 +29,7 @@ module Slim
            end
            # Found implicit smart text block.
            if line = @lines.first
