@@ -6,12 +6,12 @@ describe('stylus', function() {
   before(function() {
     stylus = new Worker(__workerPath)
 
-      stylusBuilder = function(str, cb) {
+      stylusBuilder = function(str, opts, cb) {
         stylus.onmessage = function(e) {
           cb(JSON.parse(e.data));
         };
 
-        stylus.postMessage(JSON.stringify({css: str}));
+        stylus.postMessage(JSON.stringify({css: str, options: opts}));
       };
 
   });
@@ -29,6 +29,8 @@ describe('stylus', function() {
     'index',
     '/import.',
     '.json',
+    '\/convert',
+    'functions.url',
     'image-size',
     '/require',
     '/mixins/'
@@ -68,12 +70,22 @@ describe('stylus', function() {
           // if the file contains functions that don't actually work in this env,
           // then skip it
           if (data.styl && !bannedFunctions.some(function(fn){return !!data.styl.match(fn)})) {
-            stylusBuilder(data.styl, function(response) {
+            var opts = {}
+            if (url.indexOf('compress') !== -1) {
+              opts.compress = true
+            }
+
+            if (url.indexOf('prefix.') !== -1) {
+              opts.prefix = 'prefix-'
+            }
+
+            stylusBuilder(data.styl, opts, function(response) {
               if (response.err === null) { response.err = undefined; }
 
               expect(response.err).to.be(undefined);
               expect(response.css).to.not.be(undefined);
-              expect(response.css).to.eql(response.css);
+              expect(typeof response.css).to.be('string');
+              expect(response.css.trim()).to.eql(data.css.trim());
               done();
             })
           } else {

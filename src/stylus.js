@@ -9,9 +9,13 @@ self.onmessage = function(ev) {
 
   var ren = function(str, cb, withoutFuncs) {
     var css = str;
+    var funcs = self.funcs
+    if (str.indexOf('cache(') === -1) {
+      funcs = funcs.replace('@extend {"\$cache_placeholder', '\/\/@extend ')
+    }
 
     if (!withoutFuncs) {
-      css = self.funcs + "\n\n" + str;
+      css = funcs + "\n\n" + str;
     }
 
     self.Stylus.render(css, opts, function(err, css) {
