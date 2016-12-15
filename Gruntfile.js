@@ -301,21 +301,30 @@ module.exports = function(grunt) {
     var done = this.async();
 
     var tag = grunt.config.get('currentTag');
-    var proj = this.target;
+    var lib = this.target;
+    var webpackPath = './node_modules/.bin/webpack'
 
     // we do this via spawn instead of the webpack node API because opal-webpack
     // checks the enviroment variable for OPAL_LOAD_PATH only at load time. Since
     // this changes for us over time, we need to be in a clean state. deleting
     // the loader via require.cache caused other errors, so this is the cleanest
     // way to accomplish it
-    var wP = spawn('./node_modules/.bin/webpack', [
+
+    var cmd  = isRubyLib(lib) ? 'bundler' : webpackPath
+    var args = [
       '--output-path',
       `${__dirname}/dist/`,
       '--output-filename',
-      `${proj}-${tag}.min.js`,
+      `${lib}-${tag}.min.js`,
       '--config',
-      `${__dirname}/lib/${proj}.webpack.config.js`
-      ])
+      `${__dirname}/lib/${lib}.webpack.config.js`
+    ]
+
+    if (isRubyLib(lib)) {
+      args = ['exec', webpackPath].concat(args)
+    }
+
+    var wP = spawn(cmd, args)
 
       wP.stdout.on('data', (data) => {
         grunt.log.write(data)

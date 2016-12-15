@@ -4,6 +4,7 @@ describe('sass', function() {
 
   this.timeout(5 * 60 * 1000)
   var munge_filename;
+  var scanner_state;
   var doesnt_parse;
   var err_message;
   var sassBuilder;
@@ -25,6 +26,14 @@ describe('sass', function() {
       sass.postMessage(JSON.stringify(data));
     };
 
+    scanner_setup = function() {
+      return "a=Opal.Sass.$$scope.Util.$$scope.MultibyteStringScanner.$new('cölorfül');"
+    }
+
+    scanner_state = function(pos, byte_pos, matched_size, byte_matched_size) {
+      return "(a.pos===" + pos + "&&a.$byte_pos()===" + byte_pos + "&&a.$matched_size()===" + matched_size + "&&a.$byte_matched_size()===" + byte_matched_size + ")";
+    }
+
     func_parse = function(val, opts) {
       opts = opts || {}
      return 'Opal.Sass.$$scope.Script.$$scope.Parser.$parse("' + val + '", 0, 0,Opal.hash2(' + JSON.stringify(Object.keys(opts)) + ',' + JSON.stringify(opts) + ')).$perform(Opal.Sass.$$scope.Environment.$new()).$to_s()';
@@ -33,6 +42,7 @@ describe('sass', function() {
     eval_equal = function (to_eval, expected, opts, done) {
       opts = opts || {}
       to_eval += '===' + expected
+          console.log(to_eval)
 
       sassBuilder({eval: to_eval, options: opts}, function(result) {
           expect(result.err).to.be(undefined)
@@ -1295,29 +1305,7 @@ describe('sass', function() {
 
           // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
           // or ship code thats different than what we test, we eval it in
-          sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
-        });
-
-        it('test_warn_directive', function(done) {
-          // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/scss/scss_test.rb#L118-L137
-          // v3.1.0
-
-          var css = "bar {\n  c: d; }\n";
-          var scss = "@mixin foo { @warn \"this is a mixin\";}\n@warn \"this is a warning\";\nbar {c: d; @include foo;}\n";
-
-          function third() {
-            sassBuilder({eval: "console.warn.callCount===2&&console.warn.calledWith(\"WARNING: this is a warning\\n        on line 2 of an unknown file\\n\")===true&&console.warn.calledWith(\"WARNING: this is a mixin\\n        on line 1 of an unknown file, in `foo'\\n        from line 3 of an unknown file\\n\")===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
-              expect(result.css).to.be(true)
-                done();
-            })
-          }
-
-          function second(result) {
-            expect(result.err).to.be(undefined)
-            equal(scss, css,{syntax: 'scss'}, third)
-          }
-
-          sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+          sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
         });
 
         it('test_for_directive', function(done) {
@@ -1900,20 +1888,6 @@ describe('sass', function() {
         // v3.1.0
 
         err_message("\n\nfoo \#{\") bar\"} {a: b}", 'Invalid CSS after "foo ": expected selector, was ") bar"', {syntax: 'scss'}, done)
-      });
-
-      it('test_parent_in_mid_selector_error', function(done) {
-        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/scss/scss_test.rb#L1031-L1042
-        // v3.1.0
-
-        err_message("flim {\n  .foo.bar& {a: b}\n}", "Invalid CSS after \"  .foo.bar\": expected \"{\", was \"& {a: b}\"\n\nIn Sass 3, the parent selector & can only be used where element names are valid,\nsince it could potentially be replaced by an element name.\n", {syntax: 'scss'}, done)
-      });
-
-      it('test_double_parent_selector_error', function(done) {
-        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/scss/scss_test.rb#L1057-L1068
-        // v3.1.0
-
-        err_message("flim {\n  && {a: b}\n}\n", "Invalid CSS after \"  &\": expected \"{\", was \"& {a: b}\"\n\nIn Sass 3, the parent selector & can only be used where element names are valid,\nsince it could potentially be replaced by an element name.\n", {syntax: 'scss'}, done)
       });
 
       it('test_no_interpolation_in_media_queries', function(done) {
@@ -3704,24 +3678,6 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass', style: 'compressed'}, done)
     })
 
-    it('test_loud_comment_in_silent_comment', function(done) {
-      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1551-L1567
-      // v3.1.0
-
-      var css = "foo{color:blue;/* foo */\n/* bar */\n/* */\n/* bip */\n/* baz */}\n";
-      var scss = "foo\n  color: blue\n  //! foo\n  //! bar\n  //!\n    bip\n    baz\n";
-        equal(scss, css, {syntax: 'sass', style: 'compressed'}, done)
-    })
-
-    it('test_loud_comment_is_evaluated', function(done) {
-      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1569-L1577
-      // v3.1.0
-
-      var css = "/*\n * Hue: 327.216deg */\n";
-      var scss = "/*!\n  Hue: #{hue(#f836a0)}\n";
-        equal(scss, css, {syntax: 'sass'}, done)
-    })
-
     it('test_attribute_selector_with_spaces', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1579-L1588
       // v3.1.0
@@ -3777,7 +3733,7 @@ describe('sass', function() {
 
         // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
         // or ship code thats different than what we test, we eval it in
-        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
     })
 
     it('test_root_level_pseudo_class_with_new_properties', function(done) {
@@ -3885,31 +3841,6 @@ describe('sass', function() {
         equal(scss, css, {syntax: 'sass'}, done)
     })
 
-    it('test_warn_directive', function(done) {
-      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1783-L1806
-      // v3.1.0
-
-      function third() {
-        sassBuilder({eval: "console.warn.callCount===2&&console.warn.calledWith('WARNING: this is a warning\\n        on line 4 of test_warn_directive_inline.sass\\n')===true&&console.warn.calledWith('WARNING: this is a mixin warning\\n        on line 2 of test_warn_directive_inline.sass, in `foo\\'\\n        from line 7 of test_warn_directive_inline.sass\\n')===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
-          expect(result.err).to.be(undefined)
-          expect(result.css).to.be(true)
-
-            done();
-        })
-      }
-
-        function second(result) {
-          expect(result.err).to.be(undefined)
-          var css = "bar {\n  c: d; }\n";
-          var scss = "=foo\n  @warn \"this is a mixin warning\"\n\n@warn \"this is a warning\"\nbar\n  c: d\n  +foo";
-          equal(scss, css, {syntax: 'sass', filename: 'test_warn_directive_inline.sass'}, third)
-        }
-
-        // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
-        // or ship code thats different than what we test, we eval it in
-        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
-    })
-
     it('test_warn_directive_when_quiet', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1808-L1815
       // v3.1.0
@@ -3930,7 +3861,7 @@ describe('sass', function() {
 
         // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
         // or ship code thats different than what we test, we eval it in
-        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
     })
 
     //TODO we do not support imports currently. PRs welcome!
@@ -4168,28 +4099,6 @@ describe('sass', function() {
       var scss = "@baz\n  c: d\n";
       equal(scss, css, {syntax: 'sass'}, done)
     });
-
-    it('test_comment_interpolation_warning', function(done) {
-      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L2274-L2281
-      // v3.1.0
-
-      function third() {
-        sassBuilder({eval: "console.warn.callCount===1&&console.warn.calledWith('WARNING:\\nOn line 1 of \\'test_comment_interpolation_warning_inline.sass\\'\\nComments will evaluate the contents of interpolations (#{ ... }) in Sass 3.2.\\nPlease escape the interpolation by adding a backslash before the hash sign.\\n')===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
-          expect(result.err).to.be(undefined)
-          expect(result.css).to.be(true)
-
-            done();
-        })
-      }
-
-        function second(result) {
-          expect(result.err).to.be(undefined)
-          sassBuilder({css: "/* \#{foo}", options: {syntax: 'sass', filename: 'test_comment_interpolation_warning_inline.sass'}}, third) }
-
-        // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
-        // or ship code thats different than what we test, we eval it in
-        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
-    })
 
     it('test_loud_comment_interpolations_can_be_escaped', function(done) {
       // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L2283-L2294
@@ -5805,5 +5714,649 @@ describe('sass', function() {
       function d() { eval_equal('Opal.Sass.$$scope.Script.$$scope.Parser.$parse("-1.0/0.0", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new()).value', '-Infinity', {}, e) }
       eval_equal('Number.isNaN(Opal.Sass.$$scope.Script.$$scope.Parser.$parse("0.0/0.0", 0, 0,Opal.hash2([],{})).$perform(Opal.Sass.$$scope.Environment.$new()).value)', 'true', {}, d)
     });
+
+
+    if (semver.lt(window.__libVersion, "3.1.6")) {
+      // Spacing for the wanr directive changed in 3.1.6
+      it('test_warn_directive__scss_test_3.1.0', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/scss/scss_test.rb#L118-L137
+        // v3.1.0
+
+        function third() {
+          sassBuilder({eval: "console.warn.callCount===2&&console.warn.calledWith(\"WARNING: this is a warning\\n        on line 2 of an unknown file\\n\")===true&&console.warn.calledWith(\"WARNING: this is a mixin\\n        on line 1 of an unknown file, in `foo'\\n        from line 3 of an unknown file\\n\")===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
+            expect(result.err).to.be(undefined)
+              expect(result.css).to.be(true)
+              done();
+          })
+        }
+
+        function second(result) {
+          var css = "bar {\n  c: d; }\n";
+          var scss = "@mixin foo { @warn \"this is a mixin\";}\n@warn \"this is a warning\";\nbar {c: d; @include foo;}\n";
+
+          expect(result.err).to.be(undefined)
+            equal(scss, css,{syntax: 'scss'}, third)
+        }
+
+        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+      });
+
+      it('test_warn_directive', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1783-L1806
+        // v3.1.0
+
+        function third() {
+          sassBuilder({eval: "console.warn.callCount===2&&console.warn.calledWith('WARNING: this is a warning\\n        on line 4 of test_warn_directive_inline.sass\\n')===true&&console.warn.calledWith('WARNING: this is a mixin warning\\n        on line 2 of test_warn_directive_inline.sass, in `foo\\'\\n        from line 7 of test_warn_directive_inline.sass\\n')===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
+            expect(result.err).to.be(undefined)
+              expect(result.css).to.be(true)
+
+              done();
+          })
+        }
+
+        function second(result) {
+          expect(result.err).to.be(undefined)
+            var css = "bar {\n  c: d; }\n";
+          var scss = "=foo\n  @warn \"this is a mixin warning\"\n\n@warn \"this is a warning\"\nbar\n  c: d\n  +foo";
+          equal(scss, css, {syntax: 'sass', filename: 'test_warn_directive_inline.sass'}, third)
+        }
+
+        // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
+        // or ship code thats different than what we test, we eval it in
+        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+      })
+    }
+
+    if (semver.lt(window.__libVersion, "3.1.8")) {
+      // Message started being `rstrip`ed in 3.1.8
+      it('test_parent_in_mid_selector_error', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/scss/scss_test.rb#L1031-L1042
+        // v3.1.0
+
+        err_message("flim {\n  .foo.bar& {a: b}\n}", "Invalid CSS after \"  .foo.bar\": expected \"{\", was \"& {a: b}\"\n\nIn Sass 3, the parent selector & can only be used where element names are valid,\nsince it could potentially be replaced by an element name.\n", {syntax: 'scss'}, done)
+      });
+
+      it('test_double_parent_selector_error', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/scss/scss_test.rb#L1057-L1068
+        // v3.1.0
+
+        err_message("flim {\n  && {a: b}\n}\n", "Invalid CSS after \"  &\": expected \"{\", was \"& {a: b}\"\n\nIn Sass 3, the parent selector & can only be used where element names are valid,\nsince it could potentially be replaced by an element name.\n", {syntax: 'scss'}, done)
+      });
+    }
+
+    if (semver.lt(window.__libVersion, "3.1.9")) {
+      // Test was modified in 3.1.9
+      it('test_loud_comment_is_evaluated', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1569-L1577
+        // v3.1.0
+        var css = "/*\n * Hue: 327.216deg */\n";
+        var scss = "/*!\n  Hue: #{hue(#f836a0)}\n";
+          equal(scss, css, {syntax: 'sass'}, done)
+      })
+
+      it('test_comment_interpolation_warning', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L2274-L2281
+        // v3.1.0
+
+        function third() {
+          sassBuilder({eval: "console.warn.callCount===1&&console.warn.calledWith('WARNING:\\nOn line 1 of \\'test_comment_interpolation_warning_inline.sass\\'\\nComments will evaluate the contents of interpolations (#{ ... }) in Sass 3.2.\\nPlease escape the interpolation by adding a backslash before the hash sign.\\n')===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
+            expect(result.err).to.be(undefined)
+            expect(result.css).to.be(true)
+
+              done();
+          })
+        }
+
+          function second(result) {
+            expect(result.err).to.be(undefined)
+            sassBuilder({css: "/* \#{foo}", options: {syntax: 'sass', filename: 'test_comment_interpolation_warning_inline.sass'}}, third) }
+
+          // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
+          // or ship code thats different than what we test, we eval it in
+          sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+      })
+
+      it('test_loud_comment_in_silent_comment', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1551-L1567
+        // v3.1.0
+
+        var css = "foo{color:blue;/* foo */\n/* bar */\n/* */\n/* bip */\n/* baz */}\n";
+        var scss = "foo\n  color: blue\n  //! foo\n  //! bar\n  //!\n    bip\n    baz\n";
+          equal(scss, css, {syntax: 'sass', style: 'compressed'}, done)
+      })
+    }
+
+
+  /*****************************************************************************************************
+   * v3.1.1
+   *****************************************************************************************************/
+  if (semver.gte(window.__libVersion, "3.1.1")) {
+    it('test_silent_comment_in_prop_val_after_important', function(done) {
+      // https://github.com/sass/sass/blob/3c705fdc9e072c5f461e48e296630b35a8ada83b/test/sass/engine_test.rb#L2151-L2159
+      // v3.1.1
+      var source = ".advanced\n  display: none !important // yeah, yeah. it's not really a style anyway.\n";
+      var expected = ".advanced {\n  display: none !important; }\n";
+
+      equal(source, expected, {syntax: 'sass'}, done)
+    });
+  }
+
+  /*****************************************************************************************************
+   * v3.1.2
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.2")) {
+      it('test_zip', function(done) {
+        // https://github.com/sass/sass/blob/bbba4167a62b8e49086313a648ca1d59597aa764/test/sass/functions_test.rb#L968-L971
+        // v3.1.2
+
+        function second() {eval_equal(func_parse("zip(1 2 3, 4 5 6, 7 8)"), '"1 4 7, 2 5 8"', {}, done)}
+        eval_equal(func_parse("zip(1 2, 3 4, 5 6)"), '"1 3 5, 2 4 6"', {}, second)
+      });
+
+      it('test_index', function(done) {
+        // https://github.com/sass/sass/blob/bbba4167a62b8e49086313a648ca1d59597aa764/test/sass/functions_test.rb#L968-L971
+        // v3.1.2
+
+      function e() { eval_equal(func_parse("index(1px solid blue, notfound)"), '"false"', {}, done) }
+      function d() { eval_equal(func_parse("index(1px solid blue, 1em)"), '"false"', {}, e) }
+      function c() { eval_equal(func_parse("index(1px solid blue, #00f)"), '"3"', {}, d) }
+      function b() { eval_equal(func_parse("index(1px solid blue, solid)"), '"2"', {}, c) }
+        eval_equal(func_parse("index(1px solid blue, 1px)"), '"1"', {}, b)
+      });
+    }
+
+  /*****************************************************************************************************
+   * v3.1.3
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.3")) {
+      it('test_nonexistent_import', function(done) {
+        // https://github.com/sass/sass/blob/0b65c0d4d588c131aa1c2ad4c32d21b938239585/test/sass/engine_test.rb#L577-L584
+        // v3.1.3
+
+        err_message("@import nonexistent.sass", 'File to import not found or unreadable: nonexistent.sass.\nLoad path:', {syntax: 'sass'}, done)
+      });
+
+      it('test_global_sass_logger_instance_exists', function(done) {
+        // https://github.com/sass/sass/blob/0b65c0d4d588c131aa1c2ad4c32d21b938239585/test/sass/logger_test.rb#L26-L28
+        // v3.1.3
+
+        eval_equal("Opal.Sass.logger['$respond_to?']('warn')", 'true', {}, done)
+      });
+
+      it('test_logging_can_be_disabled', function(done) {
+        // https://github.com/sass/sass/blob/0b65c0d4d588c131aa1c2ad4c32d21b938239585/test/sass/logger_test.rb#L49-L57
+        // v3.1.3
+
+        function second(result) {
+          expect(result.err).to.be(undefined)
+
+            sassBuilder({eval: "console.warn.callCount===0&&(_logger=Opal.Sass.$$scope.Logger.$$scope.Base.$new())&&_logger.$error(\'message #1\')&&console.warn.callCount===1&&(console.warn.reset(),true)&&(_logger.disabled=true)&&_logger.$error(\'message #2\')&&console.warn.calledWith(\'message #2\')===false&&console.warn.callCount===0&&(_logger=undefined,console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
+              expect(result.err).to.be(undefined)
+              expect(result.css).to.be(true)
+                done();
+            })
+          }
+
+          // or ship code thats different than what we test, we eval it in
+          sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+      });
+    }
+
+  /*****************************************************************************************************
+   * v3.1.6
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.6")) {
+      it('test_selector_tracing', function(done) {
+        // https://github.com/sass/sass/blob/657300fc80ea23cab5669cb3ab83e0808604359c/test/sass/engine_test.rb#L308-L323
+        // v3.1.6
+
+
+        var source = "@mixin mixed {\n        .mixed { color: red; }\n      }\n      .context {\n        @include mixed;\n      }\n";
+        var expected = "/* on line 2 of test_selector_tracing_inline.scss, in `mixed'\n   from line 5 of test_selector_tracing_inline.scss */\n.context .mixed {\n  color: red; }\n";
+
+        equal(source, expected, {syntax: 'scss', trace_selectors: true, filename: 'test_selector_tracing_inline.scss'}, done)
+      });
+
+      it('test_options_passed_to_script', function(done) {
+        // https://github.com/sass/sass/blob/657300fc80ea23cab5669cb3ab83e0808604359c/test/sass/scss/scss_test.rb#L1250-L1256
+        // v3.1.6
+
+        var source = "foo {color: darken(black, 10%)}\n";
+        var expected = "foo{color:#000}\n";
+
+        equal(source, expected, {syntax: 'scss', style: 'compressed'}, done)
+      });
+
+      it('test_warn_directive', function(done) {
+        // https://github.com/sass/sass/blob/657300fc80ea23cab5669cb3ab83e0808604359c/test/sass/engine_test.rb#L1804-L1827
+        // v3.1.6
+
+        function third() {
+          sassBuilder({eval: "console.warn.callCount===2&&console.warn.calledWith('WARNING: this is a warning\\n         on line 4 of test_warn_directive_inline.sass\\n')===true&&console.warn.calledWith('WARNING: this is a mixin warning\\n         on line 2 of test_warn_directive_inline.sass, in `foo\\'\\n         from line 7 of test_warn_directive_inline.sass\\n')===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
+            expect(result.err).to.be(undefined)
+              expect(result.css).to.be(true)
+
+              done();
+          })
+        }
+
+        function second(result) {
+          expect(result.err).to.be(undefined)
+            var css = "bar {\n  c: d; }\n";
+          var scss = "=foo\n  @warn \"this is a mixin warning\"\n\n@warn \"this is a warning\"\nbar\n  c: d\n  +foo";
+          equal(scss, css, {syntax: 'sass', filename: 'test_warn_directive_inline.sass'}, third)
+        }
+
+        // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
+        // or ship code thats different than what we test, we eval it in
+        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+      })
+    }
+
+  /*****************************************************************************************************
+   * v3.1.8
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.8")) {
+      it('test_parent_in_mid_selector_error', function(done) {
+        // https://github.com/sass/sass/blob/58ad24d5cb12bc4d2e25da49e025ee768236841e/test/sass/scss/scss_test.rb#L1032-L1042
+        // v3.1.8
+
+        err_message("flim {\n  .foo.bar& {a: b}\n}\n", "Invalid CSS after \"  .foo.bar\": expected \"{\", was \"& {a: b}\"\n\n\"&\" may only be used at the beginning of a selector.", {syntax: 'scss'}, done)
+      });
+
+      it('test_parent_in_mid_selector_error', function(done) {
+        // https://github.com/sass/sass/blob/58ad24d5cb12bc4d2e25da49e025ee768236841e/test/sass/scss/scss_test.rb#L1044-L1054
+        // v3.1.8
+
+        err_message("flim {\n  && {a: b}\n}\n", "Invalid CSS after \"  &\": expected \"{\", was \"& {a: b}\"\n\n\"&\" may only be used at the beginning of a selector.", {syntax: 'scss'}, done)
+      });
+
+      it('test_double_parent_selector_error', function(done) {
+        // https://github.com/sass/sass/blob/58ad24d5cb12bc4d2e25da49e025ee768236841e/test/sass/scss/scss_test.rb#L1056-L1066
+        // v3.1.8
+
+        err_message("flim {\n  && {a: b}\n}\n", "Invalid CSS after \"  &\": expected \"{\", was \"& {a: b}\"\n\n\"&\" may only be used at the beginning of a selector", {syntax: 'scss'}, done)
+      });
+
+      it('test_deprecated_PRECISION', function(done) {
+        // https://github.com/sass/sass/blob/58ad24d5cb12bc4d2e25da49e025ee768236841e/test/sass/engine_test.rb#L2455-L2459
+        // v3.1.8
+
+        function third() {
+          sassBuilder({eval: "console.warn.callCount===1&&console.warn.calledWith(\"Sass::Script::Number::PRECISION is deprecated and will be removed in a future release. Use Sass::Script::Number.precision_factor instead.\\n\")===true&&(console.warn.restore(),true)", options: {syntax: 'scss'}}, function(result) {
+            expect(result.css).to.be(true)
+              done();
+          })
+        }
+
+        function second(result) {
+          expect(result.err).to.be(undefined)
+
+          eval_equal('Opal.Sass.$$scope.Script.$$scope.Number.$$scope.get(\'PRECISION\')', '1000', {syntax: 'scss'}, third)
+        }
+
+        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'scss'}}, second)
+      });
+
+      it('test_changing_precision', function(done) {
+        // https://github.com/sass/sass/blob/58ad24d5cb12bc4d2e25da49e025ee768236841e/test/sass/engine_test.rb#L2460-L2475
+        // v3.1.8
+
+        function third() {
+          sassBuilder({eval: "Opal.Sass.$$scope.Script.$$scope.Number[\"$precision=\"](3)", options: {syntax: 'scss'}}, function(result) {
+            expect(result.css).to.be(1000)
+              done();
+          })
+        }
+
+        function second() {
+          var source = "div\n  maximum : 1.00000001\n  too-much: 1.000000001\n";
+          // technically the test is 1.0, not 1. But since JS doesn't have an explicit float type, we can't maintain the .0 and remain a number. So we cheat a tiny bit and change the expected value to 1
+          var expected = "div {\n  maximum: 1.00000001;\n  too-much: 1; }\n";
+
+          equal(source, expected, {syntax: 'sass'}, third)
+        }
+
+        sassBuilder({eval: "Opal.Sass.$$scope.Script.$$scope.Number[\"$precision=\"](8)", options: {syntax: 'sass'}}, function(result) {
+          expect(result.err).to.be(undefined);
+          expect(result.css).to.be(100000000);
+          second();
+        })
+      });
+    }
+
+    /*****************************************************************************************************
+    * v3.1.9
+    *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.9")) {
+      it('test_interpolated_comment_in_mixin', function(done) {
+        // https://github.com/sass/sass/blob/943dc1d5aa88899d9f23a47e283e698d58c15c77/test/sass/engine_test.rb#L2032-L2055
+        // v3.1.9
+
+          var source = "=foo($var)\n  /*! color: #{$var}\n  .foo\n    color: $var\n\n+foo(red)\n+foo(blue)\n+foo(green)\n";
+          var expected = "/* color: red */\n.foo {\n  color: red; }\n\n/* color: blue */\n.foo {\n  color: blue; }\n\n/* color: green */\n.foo {\n  color: green; }\n";
+
+          equal(source, expected, {syntax: 'sass'}, done)
+      });
+
+      it('test_loud_silent_comment_warning', function(done) {
+        // https://github.com/sass/sass/blob/943dc1d5aa88899d9f23a47e283e698d58c15c77/test/sass/engine_test.rb#L2339-L2346
+        // v3.1.9
+
+        function third() {
+          sassBuilder({eval: "console.warn.callCount===1&&console.warn.calledWith(\"WARNING:\\nOn line 1 of 'test_loud_silent_comment_warning_inline.sass'\\n`//` comments will no longer be allowed to use the `!` flag in Sass 3.2.\\nPlease change to `/*` comments.\\n\")===true&&(console.warn.restore(),true)", options: {syntax: 'sass'}}, function(result) {
+            expect(result.css).to.be(true)
+              done();
+          })
+        }
+
+        function second(result) {
+          expect(result.err).to.be(undefined)
+
+          equal('//! \#{foo}', '/* foo */\n', {syntax: 'sass', filename: 'test_loud_silent_comment_warning_inline.sass'}, third)
+        }
+
+        sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'sass'}}, second)
+      });
+
+      it('test_spaceless_combo_selectors', function(done) {
+        // https://github.com/sass/sass/blob/943dc1d5aa88899d9f23a47e283e698d58c15c77/test/sass/scss/css_test.rb#L803-L807
+        // v3.1.9
+
+          function third() { equal("E+F { a: b;} ", "E + F {\n  a: b; }\n", {syntax: 'scss'}, done) }
+          function second() { equal("E~F { a: b;} ", "E ~ F {\n  a: b; }\n", {syntax: 'scss'}, third) }
+          equal("E>F { a: b;} ", "E > F {\n  a: b; }\n", {syntax: 'scss'}, second)
+      });
+
+      it('test_loud_comment_is_evaluated', function(done) {
+        // https://github.com/sass/sass/blob/943dc1d5aa88899d9f23a47e283e698d58c15c77/test/sass/engine_test.rb#L1591-L1598
+        // v3.1.9
+
+        var css = "/* Hue: 327.216deg */\n";
+        var sass = "/*!\n  Hue: #{hue(#f836a0)}\n";
+          equal(sass, css, {syntax: 'sass'}, done)
+      })
+
+      it('test_comment_interpolation_warning', function(done) {
+        // https://github.com/sass/sass/blob/943dc1d5aa88899d9f23a47e283e698d58c15c77/test/sass/engine_test.rb#L2330-L2337
+        // v3.1.9
+
+        function third() {
+          sassBuilder({eval: "console.warn.callCount===1&&console.warn.calledWith('WARNING:\\nOn line 1 of \\'test_comment_interpolation_warning_inline.sass\\'\\nComments will evaluate the contents of interpolations (#{ ... }) in Sass 3.2.\\nPlease escape the interpolation by adding a backslash before the `#`.\\n')===true&&(console.warn.restore(),true)", options: {syntax: 'sass'}}, function(result) {
+            expect(result.err).to.be(undefined)
+            expect(result.css).to.be(true)
+
+              done();
+          })
+        }
+
+          function second(result) {
+            expect(result.err).to.be(undefined)
+            sassBuilder({css: "/* \#{foo}", options: {syntax: 'sass', filename: 'test_comment_interpolation_warning_inline.sass'}}, third) }
+
+          // since the tests run in the worker, we have to inject sinon and wrap the console there, rather than in this context. Rather than bloat up the shipping code,
+          // or ship code thats different than what we test, we eval it in
+          sassBuilder({eval: "importScripts(\'/base/lib/js/sinon.js\');console.warn=console.warn.reset ? console.warn.reset()&&console.warn : sinon.spy(console, \'warn\')", options: {syntax: 'sass'}}, second)
+      })
+
+      it('test_loud_comment_in_silent_comment', function(done) {
+        // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/engine_test.rb#L1551-L1567
+        // v3.1.9
+
+        var css = "foo{color:blue;/* foo */\n/* bar */\n/* bip */\n/* baz */}\n";
+        var scss = "foo\n  color: blue\n  //! foo\n  //! bar\n  //!\n    bip\n    baz\n";
+          equal(scss, css, {syntax: 'sass', style: 'compressed'}, done)
+      })
+    }
+
+  /*****************************************************************************************************
+   * v3.1.10
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.10")) {
+      it('test_star_plus_and_parent', function(done) {
+        // https://github.com/sass/sass/blob/d09db8d0ad9f020a1a87438f25ff951c87228927/test/sass/scss/scss_test.rb#L1098-L1105
+        // v3.1.10
+
+        var css = "* + html foo {\n  a: b; }\n";
+        var scss = "foo {*+html & {a: b}}\n";
+          equal(scss, css, {syntax: 'scss'}, done)
+      });
+    }
+
+  /*****************************************************************************************************
+   * v3.1.11
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.11")) {
+      it('test_control_directive_in_nested_property', function(done) {
+        // https://github.com/sass/sass/blob/4a1a0d1aaf4dd2a95cc7748b726cf0a90a432816/test/sass/engine_test.rb#L1206-L1216
+        // v3.1.11
+
+        var css = "foo {\n  a-b: c; }\n";
+        var sass = "foo\n  a:\n    @if true\n      b: c\n";
+        equal(sass, css, {syntax: 'sass'}, done)
+      });
+
+      it('test_interpolation_near_operators', function(done) {
+        // https://github.com/sass/sass/blob/4a1a0d1aaf4dd2a95cc7748b726cf0a90a432816/test/sass/script_conversion_test.rb#L226-L227
+        // v3.1.11
+
+        function b() { eval_equal(func_parse("3, #{3 + 4}, 11"), '"3, 7, 11"', {}, done) }
+        eval_equal(func_parse("#{1 + 2}, #{3 + 4}, #{5 + 6}"), '"3, 7, 11"', {}, b)
+      });
+
+      it('test_prop_name_interpolation_after_hyphen', function(done) {
+        // https://github.com/sass/sass/blob/4a1a0d1aaf4dd2a95cc7748b726cf0a90a432816/test/sass/scss/scss_test.rb#L1098-L1105
+        // v3.1.11
+
+        var css = "a {\n  -foo-bar: b; }\n";
+        var scss = "a { -#{\"foo\"}-bar: b; }";
+        equal(scss, css, {syntax: 'scss'}, done)
+      });
+    }
+
+  /*****************************************************************************************************
+   * v3.1.12
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.12")) {
+      //TODO we do not support imports currently. PRs welcome!
+      it.skip('test_basic_import_loop_exception', function() {
+        // https://github.com/sass/sass/blob/fb5cb050ce2fd67f21284ce6fee2273fb761ddbc/test/sass/engine_test.rb#L473-L484
+        // v3.1.12
+      });
+
+      //TODO we do not support imports currently. PRs welcome!
+      it.skip('test_basic_import_loop_exception', function() {
+        // https://git.skiphub.com/sass/sass/blob/fb5cb050ce2fd67f21284ce6fee2273fb761ddbc/test/sass/engine_test.rb#L486-L500
+        // v3.1.12
+      });
+
+      //TODO we do not support imports currently. PRs welcome!
+      it.skip('test_deep_import_loop_exception', function() {
+        // https://git.skiphub.com/sass/sass/blob/fb5cb050ce2fd67f21284ce6fee2273fb761ddbc/test/sass/engine_test.rb#L502-L518
+        // v3.1.12
+      });
+
+      //TODO we do not support imports currently. PRs welcome!
+      it.skip('test_tricky_mixin_loop_exception', function() {
+        // https://git.skiphub.com/sass/sass/blob/fb5cb050ce2fd67f21284ce6fee2273fb761ddbc/test/sass/engine_test.rb#L2104-L2120
+        // v3.1.12
+      });
+
+      it('test_double_media_bubbling_with_commas', function(done) {
+        // https://github.com/sass/sass/blob/fb5cb050ce2fd67f21284ce6fee2273fb761ddbc/test/sass/engine_test.rb#L2029-L2040
+        // v3.1.12
+
+        var css = "@media foo and baz, foo and bang, bar and baz, bar and bang {\n  .foo {\n    c: d; } }\n";
+        var sass = "@media foo, bar\n  @media baz, bang\n    .foo\n      c: d\n";
+        equal(sass, css, {syntax: 'sass'}, done)
+      });
+    }
+
+  /*****************************************************************************************************
+   * v3.1.13
+   *****************************************************************************************************/
+    if (semver.gte(window.__libVersion, "3.1.13")) {
+      //TODO we do not support imports currently. PRs welcome!
+      it.skip('test_import_with_interpolation', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/engine_test.rb#L615-L628
+        // v3.1.13
+      })
+
+      it('test_debug_info_in_keyframes', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/engine_test.rb#L1017-L1032
+        // v3.1.12
+
+        var css = "@-webkit-keyframes warm {\n  from {\n    color: black; }\n\n  to {\n    color: red; } }\n";
+        var sass = "@-webkit-keyframes warm\n  from\n    color: black\n  to\n    color: red\n";
+        equal(sass, css, {syntax: 'sass', debug_info: true}, done)
+      });
+
+      it('test_selector_compression', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/engine_test.rb#L2476-L2483
+        // v3.1.12
+
+        var css = "a>b,c+d,:-moz-any(e,f,g){h:i}\n";
+        var sass = "a > b, c + d, :-moz-any(e, f, g)\n  h: i\n";
+        equal(sass, css, {syntax: 'sass', style: 'compressed'}, done)
+      });
+
+      it('test_multibyte_prop_name', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/engine_test.rb#L2600-L2609
+        // v3.1.12
+
+        var css = "@charset \"UTF-8\";\n#bar {\n  cölor: blue; }\n";
+        var sass = "#bar\n  cölor: blue\n";
+        equal(sass, css, {syntax: 'sass'}, done)
+      });
+
+      it('test_multibyte_and_interpolation', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/engine_test.rb#L2611-L2622
+        // v3.1.12
+
+        var css = "#bar {\n  background: a 0%; }\n";
+        var scss = "#bar {\n  // \n  background: #{a} 0%;\n}\n";
+        equal(scss, css, {syntax: 'scss'}, done)
+      });
+
+      it('test_pseudo_unification', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/extend_test.rb#L754-L769
+        // v3.1.13
+
+        function second() {
+          var css = ":foo {\n  a: b; }\n";
+          var scss = ":foo.baz {a: b}\n:foo {@extend .baz}\n";
+
+          equal(scss, css, {syntax: 'scss'}, done)
+        }
+
+        var css = ".baz:after, :foo:after {\n  a: b; }\n";
+        var scss = ".baz:after {a: b}\n:foo {@extend .baz}\n";
+
+        equal(scss, css, {syntax: 'scss'}, second)
+      })
+
+      it('test_duplicated_selector_with_newlines', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/extend_test.rb#L1360-L1376
+        // v3.1.13
+
+        var css = ".example-1-1,\n.example-1-2,\n.my-page-1 .my-module-1-1,\n.example-1-3 {\n  a: b; }\n";
+        var scss = ".example-1-1,\n.example-1-2,\n.example-1-3 {\n  a: b;\n}\n\n.my-page-1 .my-module-1-1 {@extend .example-1-2}\n";
+
+        equal(scss, css, {syntax: 'scss'}, done)
+      })
+
+      it('test_nested_selector_with_child_selector_hack_extendee', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/extend_test.rb#L1378-L1386
+        // v3.1.13
+
+        var css = "> .foo, > foo bar {\n  a: b; }\n";
+        var scss = "> .foo {a: b}\nfoo bar {@extend .foo}\n";
+
+        equal(scss, css, {syntax: 'scss'}, done)
+      })
+
+      it('test_nested_selector_with_child_selector_hack_extender', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/extend_test.rb#L1388-L1396
+        // v3.1.13
+
+        var css = ".foo .bar, > .foo foo bar, > foo .foo bar {\n  a: b; }\n";
+        var scss = ".foo .bar {a: b}\n> foo bar {@extend .bar}\n";
+        equal(scss, css, {syntax: 'scss'}, done)
+      })
+
+      it('test_nested_selector_with_child_selector_hack_extender_and_extendee', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/extend_test.rb#L1398-L1406
+        // v3.1.13
+
+        var css = "> .foo, > foo bar {\n  a: b; }\n";
+        var scss = "> .foo {a: b}\n> foo bar {@extend .foo}\n";
+        equal(scss, css, {syntax: 'scss'}, done)
+      })
+
+      it('test_nested_selector_with_child_selector_hack_extender_and_sibling_selector_extendee', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/extend_test.rb#L1408-L1416
+        // v3.1.13
+
+        var css = "~ .foo {\n  a: b; }\n";
+        var scss = "~ .foo {a: b}\n> foo bar {@extend .foo}\n";
+        equal(scss, css, {syntax: 'scss'}, done)
+      })
+
+      it('test_nested_selector_with_child_selector_hack_extender_and_extendee_and_newline', function(done) {
+        // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/extend_test.rb#L1418-L1428
+        // v3.1.13
+
+        var css = "> .foo, > flip,\n> foo bar {\n  a: b; }\n";
+        var scss = "> .foo {a: b}\nflip,\n> foo bar {@extend .foo}\n";
+        equal(scss, css, {syntax: 'scss'}, done)
+      })
+
+    it('test_dynamic_url', function(done) {
+      // https://github.com/sass/sass/blob/e91fec7382b457f8e661b6480b5e6a485ce04c85/test/sass/script_test.rb#L223-L228
+      // v3.1.0
+
+      function b() { eval_equal("env=Opal.Sass.$$scope.Environment.$new();env.$set_var('ie',Opal.Sass.$$scope.Script.$$scope.Bool.$new(false));Opal.Sass.$$scope.Script.$$scope.Parser.$parse('$ie and $ie <= 7', 0, 0).$perform(env).$to_s()", '"false"', {}, done) }
+      eval_equal("env=Opal.Sass.$$scope.Environment.$new();env.$set_var('ie',Opal.Sass.$$scope.Script.$$scope.Bool.$new(true));Opal.Sass.$$scope.Script.$$scope.Parser.$parse('$ie or $undef', 0, 0).$perform(env).$to_s()", '"true"', {}, b)
+    });
+
+    it('test_initial', function(done) {
+      // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/util/multibyte_string_scanner_test.rb#L11-L13
+      // v3.1.13
+
+      eval_equal(scanner_setup() + scanner_state(0,0,'Opal.nil','Opal.nil'), 'true', {}, done)
+    })
+
+    it('test_initial', function(done) {
+      // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/util/multibyte_string_scanner_test.rb#L11-L13
+      // v3.1.13
+
+      eval_equal(scanner_setup() + scanner_state(0,0,'Opal.nil','Opal.nil'), 'true', {}, done)
+    })
+
+    it('test_check', function(done) {
+      // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/util/multibyte_string_scanner_test.rb#L15-L22
+      // v3.1.13
+
+      function b() { eval_equal(scanner_state(0,0,2,3), 'true', {}, done) }
+      eval_equal(scanner_setup() + 'a.$check(/../)', '"cö"', {}, b)
+    })
+
+    it('test_check_until', function(done) {
+      // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/util/multibyte_string_scanner_test.rb#L24-L27
+      // v3.1.13
+
+      function b() { debugger; eval_equal(scanner_state(0,0,2,3), 'true', {}, done) }
+      eval_equal(scanner_setup() + 'a.$check_until(/f./)', '"cölorfü"', {}, b)
+    })
+
+    it('test_getch', function(done) {
+      // https://github.com/sass/sass/blob/d5dab66acf6ebc1ac36d86fe90b4625397450fe6/test/sass/util/multibyte_string_scanner_test.rb#L29-L33
+      // v3.1.13
+
+      function c() { eval_equal(scanner_state(2,3,1,2), 'true', {}, done) }
+      function b() { eval_equal('a.$getch()', '"ö"', {}, c) }
+      eval_equal(scanner_setup() + 'a.$getch()', '"c"', {}, b)
+    })
+    }
   })
 });

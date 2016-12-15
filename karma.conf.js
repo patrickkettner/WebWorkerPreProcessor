@@ -21,7 +21,7 @@ module.exports = function(config) {
     browserDisconnectTimeout: 180 * 1000,
     browserNoActivityTimeout: 180 * 1000,
     port: 9999,
-    singleRun: true,
+    singleRun: false,
     browsers: Object.keys(customLaunchers),
     reporters: ['dots', 'saucelabs'],
     logLevel: 'ERROR',

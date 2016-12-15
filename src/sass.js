@@ -1,5 +1,6 @@
 require('opal-webpack!./sass.rb')
 hashify = require('../lib/js/hashify');
+self.utf8 = require('utf8')
 
 self.onmessage = function(e) {
   var data = JSON.parse(e.data);
