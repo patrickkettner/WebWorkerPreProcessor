@@ -1,0 +1,1847 @@
+From 36cd67ed14f79de2c9ed848863152c045384ea3e Mon Sep 17 00:00:00 2001
+From: Patrick Kettner <patrickkettner@gmail.com>
+Date: Wed, 28 Dec 2016 07:27:56 -0500
+Subject: [PATCH] .
+
+---
+ lib/sass.rb                               |   2 -
+ lib/sass/engine.rb                        |  80 ++++++++-----------
+ lib/sass/environment.rb                   |   6 +-
+ lib/sass/error.rb                         |  13 +++-
+ lib/sass/exec.rb                          |   2 +-
+ lib/sass/importers/filesystem.rb          |   7 --
+ lib/sass/media.rb                         |  10 +--
+ lib/sass/plugin/compiler.rb               |  76 ------------------
+ lib/sass/script.rb                        |   5 +-
+ lib/sass/script/interpolation.rb          |  24 +++---
+ lib/sass/script/lexer.rb                  |  39 ++++++----
+ lib/sass/script/number.rb                 |   4 +-
+ lib/sass/script/parser.rb                 |   3 +-
+ lib/sass/script/string_interpolation.rb   |  28 +++----
+ lib/sass/scss/parser.rb                   |  53 +++++++------
+ lib/sass/scss/rx.rb                       |  84 +++++++++++---------
+ lib/sass/scss/static_parser.rb            |   2 +-
+ lib/sass/selector.rb                      |   4 +
+ lib/sass/selector/comma_sequence.rb       |   2 +-
+ lib/sass/selector/sequence.rb             |   9 ++-
+ lib/sass/selector/simple_sequence.rb      |   2 +-
+ lib/sass/shared.rb                        |   4 +-
+ lib/sass/tree/comment_node.rb             |   4 +-
+ lib/sass/tree/css_import_node.rb          |   2 +-
+ lib/sass/tree/import_node.rb              |   4 +-
+ lib/sass/tree/rule_node.rb                |   2 +-
+ lib/sass/tree/visitors/convert.rb         |  38 ++++-----
+ lib/sass/tree/visitors/perform.rb         |  14 ++--
+ lib/sass/tree/visitors/to_css.rb          |  74 ++++++++----------
+ lib/sass/util.rb                          |  72 ++++-------------
+ lib/sass/util/multibyte_string_scanner.rb |  15 +++-
+ lib/sass/version.rb                       | 125 +-----------------------------
+ yard/callbacks.rb                         |   2 +-
+ yard/inherited_hash.rb                    |   2 +-
+ 34 files changed, 297 insertions(+), 516 deletions(-)
+
+diff --git a/lib/sass.rb b/lib/sass.rb
+index 63af120..2a849a7 100644
+--- a/lib/sass.rb
++++ b/lib/sass.rb
+@@ -91,5 +91,3 @@ require 'sass/logger'
+ require 'sass/util'
+ 
+ require 'sass/engine'
+-require 'sass/plugin' if defined?(Merb::Plugins)
+-require 'sass/railtie'
+diff --git a/lib/sass/engine.rb b/lib/sass/engine.rb
+index 6f5b64d..fa495ae 100644
+--- a/lib/sass/engine.rb
++++ b/lib/sass/engine.rb
+@@ -1,6 +1,4 @@
+ require 'set'
+-require 'digest/sha1'
+-require 'sass/cache_stores'
+ require 'sass/tree/node'
+ require 'sass/tree/root_node'
+ require 'sass/tree/rule_node'
+@@ -168,6 +166,7 @@ module Sass
+     # @return [{Symbol => Object}] The normalized options hash.
+     # @private
+     def self.normalize_options(options)
++      options[:syntax] = options[:syntax].to_sym
+       options = DEFAULT_OPTIONS.merge(options.reject {|k, v| v.nil?})
+ 
+       # If the `:filename` option is passed in without an importer,
+@@ -177,8 +176,6 @@ module Sass
+       # Tracks the original filename of the top-level Sass file
+       options[:original_filename] ||= options[:filename]
+ 
+-      options[:cache_store] ||= Sass::CacheStores::Chain.new(
+-        Sass::CacheStores::Memory.new, Sass::CacheStores::Filesystem.new(options[:cache_location]))
+       # Support both, because the docs said one and the other actually worked
+       # for quite a long time.
+       options[:line_comments] ||= options[:line_numbers]
+@@ -315,29 +312,13 @@ module Sass
+       rendered = _to_tree.render
+       return rendered if ruby1_8?
+       begin
+-        # Try to convert the result to the original encoding,
+-        # but if that doesn't work fall back on UTF-8
+-        rendered = rendered.encode(source_encoding)
++      rendered
+       rescue EncodingError
+       end
+-      rendered.gsub(Regexp.new('\A@charset "(.*?)"'.encode(source_encoding)),
+-        "@charset \"#{source_encoding.name}\"".encode(source_encoding))
++      rendered
+     end
+ 
+     def _to_tree
+-      if (@options[:cache] || @options[:read_cache]) &&
+-          @options[:filename] && @options[:importer]
+-        key = sassc_key
+-        sha = Digest::SHA1.hexdigest(@template)
+-
+-        if root = @options[:cache_store].retrieve(key, sha)
+-          root.options = @options
+-          return root
+-        end
+-      end
+-
+-      check_encoding!
+-
+       if @options[:syntax] == :scss
+         root = Sass::SCSS::Parser.new(@template, @options[:filename]).parse
+       else
+@@ -346,15 +327,6 @@ module Sass
+       end
+ 
+       root.options = @options
+-      if @options[:cache] && key && sha
+-        begin
+-          old_options = root.options
+-          root.options = {}
+-          @options[:cache_store].store(key, sha, root)
+-        ensure
+-          root.options = old_options
+-        end
+-      end
+       root
+     rescue SyntaxError => e
+       e.modify_backtrace(:filename => @options[:filename], :line => @line)
+@@ -362,10 +334,6 @@ module Sass
+       raise e
+     end
+ 
+-    def sassc_key
+-      @options[:cache_store].key(*@options[:importer].key(@options[:filename], @options))
+-    end
+-
+     def check_encoding!
+       return if @checked_encoding
+       @checked_encoding = true
+@@ -382,7 +350,7 @@ module Sass
+       string.gsub(/\r|\n|\r\n|\r\n/, "\n").scan(/^[^\n]*?$/).each_with_index do |line, index|
+         index += (@options[:line] || 1)
+         if line.strip.empty?
+-          lines.last.text << "\n" if lines.last && lines.last.comment?
++	  lines.last.text += "\n" if lines.last && lines.last.comment?
+           next
+         end
+ 
+@@ -443,7 +411,7 @@ MSG
+       end
+ 
+       last.comment_tab_str ||= comment_tab_str
+-      last.text << "\n" << line
++      last.text += "\n" + line
+       true
+     end
+ 
+@@ -637,7 +605,7 @@ WARNING
+           value = [line.text]
+         else
+           value = self.class.parse_interp(line.text, line.index, line.offset, :filename => @filename)
+-          value[0].slice!(2) if loud # get rid of the "!"
++	  value[0] = value[0][0...2] + value[0][3..-1] if loud # get rid of the "!"
+         end
+         value = with_extracted_values(value) do |str|
+           str = str.gsub(/^#{line.comment_tab_str}/m, '')[2..-1] # get rid of // or /*
+@@ -651,7 +619,11 @@ WARNING
+     end
+ 
+     def parse_directive(parent, line, root)
+-      directive, whitespace, value = line.text[1..-1].split(/(\s+)/, 2)
++      txt = line.text[1..-1]
++      re = /\s+/
++      directive, value = txt.split(re, 2)
++      whitespace = txt.match(re)
++      whitespace = whitespace.to_s unless whitespace.nil?
+       offset = directive.size + whitespace.size + 1 if whitespace
+ 
+       # If value begins with url( or ",
+@@ -689,7 +661,9 @@ WARNING
+         raise SyntaxError.new("Invalid extend directive '@extend': expected expression.") unless value
+         raise SyntaxError.new("Illegal nesting: Nothing may be nested beneath extend directives.",
+           :line => @line + 1) unless line.children.empty?
+-        optional = !!value.gsub!(/\s+#{Sass::SCSS::RX::OPTIONAL}$/, '')
++	orig_value = value
++	value = value.gsub(/\s+#{Sass::SCSS::RX::OPTIONAL.source}$/, '')
++	optional = value == orig_value
+         offset = line.offset + line.text.index(value).to_i
+         Tree::ExtendNode.new(parse_interp(value, offset), optional)
+       when 'warn'
+@@ -705,7 +679,7 @@ WARNING
+         offset = line.offset + line.text.index(value).to_i
+         Tree::ReturnNode.new(parse_script(value, :offset => offset))
+       when 'charset'
+-        name = value && value[/\A(["'])(.*)\1\Z/, 2] #"
++	name = value && value[/\^(["'])(.*)\1\$/, 2] #"
+         raise SyntaxError.new("Invalid charset directive '@charset': expected string.") unless name
+         raise SyntaxError.new("Illegal nesting: Nothing may be nested beneath charset directives.",
+           :line => @line + 1) unless line.children.empty?
+@@ -827,7 +801,7 @@ WARNING
+       end
+     end
+ 
+-    MIXIN_DEF_RE = /^(?:=|@mixin)\s*(#{Sass::SCSS::RX::IDENT})(.*)$/
++    MIXIN_DEF_RE = /^(?:=|@mixin)\s*(#{Sass::SCSS::RX::IDENT.source})(.*)$/
+     def parse_mixin_definition(line)
+       name, arg_string = line.text.scan(MIXIN_DEF_RE).first
+       raise SyntaxError.new("Invalid mixin \"#{line.text[1..-1]}\".") if name.nil?
+@@ -847,7 +821,7 @@ WARNING
+       Tree::ContentNode.new
+     end
+ 
+-    MIXIN_INCLUDE_RE = /^(?:\+|@include)\s*(#{Sass::SCSS::RX::IDENT})(.*)$/
++    MIXIN_INCLUDE_RE = /^(?:\+|@include)\s*(#{Sass::SCSS::RX::IDENT.source})(.*)$/
+     def parse_mixin_include(line, root)
+       name, arg_string = line.text.scan(MIXIN_INCLUDE_RE).first
+       raise SyntaxError.new("Invalid mixin include \"#{line.text}\".") if name.nil?
+@@ -858,7 +832,7 @@ WARNING
+       Tree::MixinNode.new(name, args, keywords, splat)
+     end
+ 
+-    FUNCTION_RE = /^@function\s*(#{Sass::SCSS::RX::IDENT})(.*)$/
++    FUNCTION_RE = /^@function\s*(#{Sass::SCSS::RX::IDENT.source})(.*)$/
+     def parse_function(line, root)
+       name, arg_string = line.text.scan(FUNCTION_RE).first
+       raise SyntaxError.new("Invalid function definition \"#{line.text}\".") if name.nil?
+@@ -884,15 +858,23 @@ WARNING
+       end
+ 
+       return silent ? "//" : "/* */" if content.empty?
+-      content.last.gsub!(%r{ ?\*/ *$}, '')
+-      content.map! {|l| l.gsub!(/^\*( ?)/, '\1') || (l.empty? ? "" : " ") + l}
+-      content.first.gsub!(/^ /, '') unless removed_first
++      content[-1] = content.last.gsub(%r{ ?\*/ *$}, '')
++      content = content.map {|l|
++	old_val = l
++	l = l.gsub(/^\*( ?)/, '\1')
++	l = (l.empty? ? "" : " ") + l if l == old_val
++	l
++      }
++      content[0] = content.first.gsub(/^ /, '') unless removed_first
+       if silent
+-        "//" + content.join("\n//")
++	res = "//" + content.join("\n//")
+       else
+         # The #gsub fixes the case of a trailing */
+-        "/*" + content.join("\n *").gsub(/ \*\Z/, '') + " */"
++	res = "/*" + content.join("\n *")
++	res = res[0...-2] if res[-2..-1] == ' *'
++	res += " */"
+       end
++      res
+     end
+ 
+     def parse_interp(text, offset = 0)
+diff --git a/lib/sass/environment.rb b/lib/sass/environment.rb
+index ec1800c..935ba4a 100644
+--- a/lib/sass/environment.rb
++++ b/lib/sass/environment.rb
+@@ -54,7 +54,7 @@ module Sass
+       def inherited_hash(name)
+         class_eval <<RUBY, __FILE__, __LINE__ + 1
+           def #{name}(name)
+-            _#{name}(name.tr(UNDERSCORE, DASH))
++	    _#{name}(name.tr('_', '-'))
+           end
+ 
+           def _#{name}(name)
+@@ -63,7 +63,7 @@ module Sass
+           protected :_#{name}
+ 
+           def set_#{name}(name, value)
+-            name = name.tr(UNDERSCORE, DASH)
++	    name = name.tr("_", "-")
+             @#{name}s[name] = value unless try_set_#{name}(name, value)
+           end
+ 
+@@ -82,7 +82,7 @@ module Sass
+ 
+           def set_local_#{name}(name, value)
+             @#{name}s ||= {}
+-            @#{name}s[name.tr(UNDERSCORE, DASH)] = value
++	    @#{name}s[name.tr("_", "-")] = value
+           end
+ RUBY
+       end
+diff --git a/lib/sass/error.rb b/lib/sass/error.rb
+index c47c0db..a94d85b 100644
+--- a/lib/sass/error.rb
++++ b/lib/sass/error.rb
+@@ -103,13 +103,17 @@ module Sass
+     #
+     # @param attrs [{Symbol => Object}] The information to add to the backtrace entry.
+     #   See \{#sass\_backtrace}
++    def reject_if_included(attrs, entry)
++      attrs.reject {|k, v| entry.include?(k)}
++    end
++
+     def modify_backtrace(attrs)
+       attrs = attrs.reject {|k, v| v.nil?}
+       # Move backwards through the backtrace
+       (0...sass_backtrace.size).to_a.reverse.each do |i|
+         entry = sass_backtrace[i]
+         sass_backtrace[i] = attrs.merge(entry)
+-        attrs.reject! {|k, v| entry.include?(k)}
++	attrs = reject_if_included(attrs, entry)
+         break if attrs.empty?
+       end
+     end
+@@ -119,6 +123,11 @@ module Sass
+       @message
+     end
+ 
++    def append_to_err (str)
++      @message += str
++      self
++    end
++
+     # Returns the standard exception backtrace,
+     # including the Sass backtrace.
+     #
+@@ -172,7 +181,7 @@ Backtrace:\n#{e.backtrace.join("\n")}
+ body:before {
+   white-space: pre;
+   font-family: monospace;
+-  content: "#{header.gsub('"', '\"').gsub("\n", '\\A ')}"; }
++  content: "#{header.gsub('"', '\"').gsub("\n", '\^ ')}"; }
+ END
+       end
+ 
+diff --git a/lib/sass/exec.rb b/lib/sass/exec.rb
+index d60aefe..c9a1915 100644
+--- a/lib/sass/exec.rb
++++ b/lib/sass/exec.rb
+@@ -438,7 +438,7 @@ MSG
+       def split_colon_path(path)
+         one, two = path.split(':', 2)
+         if one && two && ::Sass::Util.windows? &&
+-            one =~ /\A[A-Za-z]\Z/ && two =~ /\A[\/\\]/
++	    one =~ /^[A-Za-z]$/ && two =~ /^[\/\\]/
+           # If we're on Windows and we were passed a drive letter path,
+           # don't split on that colon.
+           one2, two = two.split(':', 2)
+diff --git a/lib/sass/importers/filesystem.rb b/lib/sass/importers/filesystem.rb
+index 456c98c..928f82b 100644
+--- a/lib/sass/importers/filesystem.rb
++++ b/lib/sass/importers/filesystem.rb
+@@ -107,13 +107,6 @@ module Sass
+       # @param name [String] The filename to search for.
+       # @return [(String, Symbol)] A filename-syntax pair.
+       def find_real_file(dir, name)
+-        for (f,s) in possible_files(remove_root(name))
+-          path = (dir == "." || Pathname.new(f).absolute?) ? f : "#{dir}/#{f}"
+-          if full_path = Dir[path].first
+-            full_path.gsub!(REDUNDANT_DIRECTORY,File::SEPARATOR)
+-            return full_path, s
+-          end
+-        end
+         nil
+       end
+ 
+diff --git a/lib/sass/media.rb b/lib/sass/media.rb
+index a50a972..49d2308 100644
+--- a/lib/sass/media.rb
++++ b/lib/sass/media.rb
+@@ -151,11 +151,11 @@ module Sass::Media
+     # @return [String]
+     def to_css
+       css = ''
+-      css << resolved_modifier
+-      css << ' ' unless resolved_modifier.empty?
+-      css << resolved_type
+-      css << ' and ' unless resolved_type.empty? || expressions.empty?
+-      css << expressions.map do |e|
++      css += resolved_modifier
++      css += ' ' unless resolved_modifier.empty?
++      css += resolved_type
++      css += ' and ' unless resolved_type.empty? || expressions.empty?
++      css += expressions.map do |e|
+         # It's possible for there to be script nodes in Expressions even when
+         # we're converting to CSS in the case where we parsed the document as
+         # CSS originally (as in css_test.rb).
+diff --git a/lib/sass/plugin/compiler.rb b/lib/sass/plugin/compiler.rb
+index e6ea988..27ba0b0 100644
+--- a/lib/sass/plugin/compiler.rb
++++ b/lib/sass/plugin/compiler.rb
+@@ -231,82 +231,6 @@ module Sass::Plugin
+     #   The first string in each pair is the location of the Sass/SCSS file,
+     #   the second is the location of the CSS file that it should be compiled to.
+     def watch(individual_files = [])
+-      update_stylesheets(individual_files)
+-
+-      begin
+-        require 'listen'
+-      rescue LoadError => e
+-        dir = Sass::Util.scope("vendor/listen/lib")
+-        if $LOAD_PATH.include?(dir)
+-          e.message << "\n" <<
+-            if File.exists?(scope(".git"))
+-              'Run "git submodule update --init" to get the recommended version.'
+-            else
+-              'Run "gem install listen" to get it.'
+-            end
+-          raise e
+-        else
+-          $LOAD_PATH.unshift dir
+-          retry
+-        end
+-      end
+-
+-      template_paths = template_locations # cache the locations
+-      individual_files_hash = individual_files.inject({}) do |h, files|
+-        parent = File.dirname(files.first)
+-        (h[parent] ||= []) << files unless template_paths.include?(parent)
+-        h
+-      end
+-      directories = template_paths + individual_files_hash.keys +
+-        [{:relative_paths => true}]
+-
+-      # TODO: Keep better track of what depends on what
+-      # so we don't have to run a global update every time anything changes.
+-      listener = Listen::MultiListener.new(*directories) do |modified, added, removed|
+-        modified.each do |f|
+-          parent = File.dirname(f)
+-          if files = individual_files_hash[parent]
+-            next unless files.first == f
+-          else
+-            next unless f =~ /\.s[ac]ss$/
+-          end
+-          run_template_modified(f)
+-        end
+-
+-        added.each do |f|
+-          parent = File.dirname(f)
+-          if files = individual_files_hash[parent]
+-            next unless files.first == f
+-          else
+-            next unless f =~ /\.s[ac]ss$/
+-          end
+-          run_template_created(f)
+-        end
+-
+-        removed.each do |f|
+-          parent = File.dirname(f)
+-          if files = individual_files_hash[parent]
+-            next unless files.first == f
+-            try_delete_css files[1]
+-          else
+-            next unless f =~ /\.s[ac]ss$/
+-            try_delete_css f.gsub(/\.s[ac]ss$/, '.css')
+-          end
+-          run_template_deleted(f)
+-        end
+-
+-        update_stylesheets(individual_files)
+-      end
+-
+-      # The native windows listener is much slower than the polling
+-      # option, according to https://github.com/nex3/sass/commit/a3031856b22bc834a5417dedecb038b7be9b9e3e#commitcomment-1295118
+-      listener.force_polling(true) if Sass::Util.windows?
+-
+-      begin
+-        listener.start
+-      rescue Exception => e
+-        raise e unless e.is_a?(Interrupt)
+-      end
+     end
+ 
+     # Non-destructively modifies \{#options} so that default values are properly set,
+diff --git a/lib/sass/script.rb b/lib/sass/script.rb
+index 44228b5..bd94106 100644
+--- a/lib/sass/script.rb
++++ b/lib/sass/script.rb
+@@ -12,10 +12,11 @@ module Sass
+   # This module contains code that handles the parsing and evaluation of SassScript.
+   module Script
+     # The regular expression used to parse variables.
+-    MATCH = /^\$(#{Sass::SCSS::RX::IDENT})\s*:\s*(.+?)(!(?i:default))?$/
++
++    MATCH = /^\$(#{Sass::SCSS::RX::IDENT.source})\s*:\s*(.+?)(!(?:[dD][eE][fF][aA][uU][lL][tT]))?$/
+ 
+     # The regular expression used to validate variables without matching.
+-    VALIDATE = /^\$#{Sass::SCSS::RX::IDENT}$/
++    VALIDATE = /^\$#{Sass::SCSS::RX::IDENT.source}$/
+ 
+     # Parses a string of SassScript
+     #
+diff --git a/lib/sass/script/interpolation.rb b/lib/sass/script/interpolation.rb
+index 53902b1..5d3395e 100644
+--- a/lib/sass/script/interpolation.rb
++++ b/lib/sass/script/interpolation.rb
+@@ -31,13 +31,13 @@ module Sass::Script
+     # @see Node#to_sass
+     def to_sass(opts = {})
+       res = ""
+-      res << @before.to_sass(opts) if @before
+-      res << ' ' if @before && @whitespace_before
+-      res << '#{' unless @originally_text
+-      res << @mid.to_sass(opts)
+-      res << '}' unless @originally_text
+-      res << ' ' if @after && @whitespace_after
+-      res << @after.to_sass(opts) if @after
++      res += @before.to_sass(opts) if @before
++      res += ' ' if @before && @whitespace_before
++      res += '#{' unless @originally_text
++      res += @mid.to_sass(opts)
++      res += '}' unless @originally_text
++      res += ' ' if @after && @whitespace_after
++      res += @after.to_sass(opts) if @after
+       res
+     end
+ 
+@@ -67,12 +67,12 @@ module Sass::Script
+     # @return [Sass::Script::String] The SassScript string that is the value of the interpolation
+     def _perform(environment)
+       res = ""
+-      res << @before.perform(environment).to_s if @before
+-      res << " " if @before && @whitespace_before
++      res += @before.perform(environment).to_s if @before
++      res += " " if @before && @whitespace_before
+       val = @mid.perform(environment)
+-      res << (val.is_a?(Sass::Script::String) ? val.value : val.to_s)
+-      res << " " if @after && @whitespace_after
+-      res << @after.perform(environment).to_s if @after
++      res += (val.is_a?(Sass::Script::String) ? val.value : val.to_s)
++      res += " " if @after && @whitespace_after
++      res += @after.perform(environment).to_s if @after
+       opts(Sass::Script::String.new(res))
+     end
+   end
+diff --git a/lib/sass/script/lexer.rb b/lib/sass/script/lexer.rb
+index d24c326..5d34aad 100644
+--- a/lib/sass/script/lexer.rb
++++ b/lib/sass/script/lexer.rb
+@@ -86,14 +86,15 @@ module Sass
+         :whitespace => /\s+/,
+         :comment => COMMENT,
+         :single_line_comment => SINGLE_LINE_COMMENT,
+-        :variable => /(\$)(#{IDENT})/,
+-        :ident => /(#{IDENT})(\()?/,
++	:variable => /(\$)(#{IDENT.source})/,
++	:ident => /(#{IDENT.source})(\()?/,
+         :number => /(-)?(?:(\d*\.\d+)|(\d+))([a-zA-Z%]+)?/,
+         :color => HEXCOLOR,
+         :bool => /(true|false)\b/,
+         :null => /null\b/,
+-        :ident_op => %r{(#{Regexp.union(*IDENT_OP_NAMES.map{|s| Regexp.new(Regexp.escape(s) + "(?!#{NMCHAR}|\Z)")})})},
+-        :op => %r{(#{Regexp.union(*OP_NAMES)})},
++	:ident_op => %r{(#{Regexp.union(*IDENT_OP_NAMES.map{|s| Regexp.new(Regexp.escape(s) + "(?!#{NMCHAR.source}|\Z)")}).source})},
++	:ident_op_pre => /#{IDENT_OP_NAMES.join('|')}/,
++	:op => %r{(#{Regexp.union(*OP_NAMES).source})},
+       }
+ 
+       class << self
+@@ -114,14 +115,14 @@ module Sass
+         [:single, false] => string_re("'", "'"),
+         [:double, true] => string_re('', '"'),
+         [:single, true] => string_re('', "'"),
+-        [:uri, false] => /url\(#{W}(#{URLCHAR}*?)(#{W}\)|#\{)/,
+-        [:uri, true] => /(#{URLCHAR}*?)(#{W}\)|#\{)/,
++	[:uri, false] => /url\(#{W.source}((?:#{URLCHAR.source})*?)(#{W.source}\)|#\{)/,
++	[:uri, true] => /((?:#{URLCHAR.source})*?)(#{W.source}\)|#\{)/,
+         # Defined in https://developer.mozilla.org/en/CSS/@-moz-document as a
+         # non-standard version of http://www.w3.org/TR/css3-conditional/
+-        [:url_prefix, false] => /url-prefix\(#{W}(#{URLCHAR}*?)(#{W}\)|#\{)/,
+-        [:url_prefix, true] => /(#{URLCHAR}*?)(#{W}\)|#\{)/,
+-        [:domain, false] => /domain\(#{W}(#{URLCHAR}*?)(#{W}\)|#\{)/,
+-        [:domain, true] => /(#{URLCHAR}*?)(#{W}\)|#\{)/,
++	[:url_prefix, false] => /url-prefix\(#{W.source}((?:#{URLCHAR.source})*?)(#{W.source}\)|#\{)/,
++	[:url_prefix, true] => /((?:#{URLCHAR.source})*?)(#{W.source}\)|#\{)/,
++	[:domain, false] => /domain\(#{W.source}((?:#{URLCHAR.source})*?)(#{W.source}\)|#\{)/,
++	[:domain, true] => /((?:#{URLCHAR.source})*?)(#{W.source}\)|#\{)/,
+       }
+ 
+       # @param str [String, StringScanner] The source text to lex
+@@ -155,10 +156,10 @@ module Sass
+       # @return [Boolean]
+       def whitespace?(tok = @tok)
+         if tok
+-          @scanner.string[0...tok.pos] =~ /\s\Z/
++	  @scanner.string[0...tok.pos] =~ /\s$/
+         else
+           @scanner.string[@scanner.pos, 1] =~ /^\s/ ||
+-            @scanner.string[@scanner.pos - 1, 1] =~ /\s\Z/
++	    @scanner.string[@scanner.pos - 1, 1] =~ /\s$/
+         end
+       end
+ 
+@@ -217,7 +218,7 @@ module Sass
+         return if done?
+         return unless value = token
+         type, val, size = value
+-        size ||= @scanner.matched_size
++	size ||= @scanner.matched && @scanner.matched.length
+ 
+         val.line = @line if val.is_a?(Script::Node)
+         Token.new(type, val, @line,
+@@ -319,7 +320,17 @@ MESSAGE
+       end
+ 
+       def ident_op
+-        return unless op = scan(REGULAR_EXPRESSIONS[:ident_op])
++	# have to rewrite this entirely because of JS's support of \Z in order
++	# to get the fix in 67a662e3 working
++	return unless op = @scanner.check(REGULAR_EXPRESSIONS[:ident_op_pre])
++
++	orig_position = @scanner.pos
++	@scanner.pos += op.size
++	negative_check = @scanner.check(%r{(?!#{NMCHAR.source})}) != ""
++	@scanner.pos = orig_position
++
++	return if @scanner.eos? or negative_check
++	op = scan(REGULAR_EXPRESSIONS[:ident_op_pre])
+         [OPERATORS[op]]
+       end
+ 
+diff --git a/lib/sass/script/number.rb b/lib/sass/script/number.rb
+index 1eac160..51e6ca6 100644
+--- a/lib/sass/script/number.rb
++++ b/lib/sass/script/number.rb
+@@ -345,8 +345,8 @@ module Sass::Script
+     def unit_str
+       rv = @numerator_units.sort.join("*")
+       if @denominator_units.any?
+-        rv << "/"
+-        rv << @denominator_units.sort.join("*")
++	rv += "/"
++	rv += @denominator_units.sort.join("*")
+       end
+       rv
+     end
+diff --git a/lib/sass/script/parser.rb b/lib/sass/script/parser.rb
+index c8bcf78..7820dec 100644
+--- a/lib/sass/script/parser.rb
++++ b/lib/sass/script/parser.rb
+@@ -296,7 +296,8 @@ RUBY
+ 
+       def space
+         line = @lexer.line
+-        return unless e = or_expr
++	e = or_expr
++	return unless e
+         arr = [e]
+         while e = or_expr
+           arr << e
+diff --git a/lib/sass/script/string_interpolation.rb b/lib/sass/script/string_interpolation.rb
+index 6baba12..2c76d9e 100644
+--- a/lib/sass/script/string_interpolation.rb
++++ b/lib/sass/script/string_interpolation.rb
+@@ -31,23 +31,23 @@ module Sass::Script
+         (!before_quote_char && after_quote_char && !before_str.empty?)
+       quote_char =
+         if before_quote_char && after_quote_char && before_quote_char != after_quote_char
+-          before_str.gsub!("\\'", "'")
+-          before_str.gsub!('"', "\\\"")
+-          after_str.gsub!("\\'", "'")
+-          after_str.gsub!('"', "\\\"")
++	  before_str = before_str.gsub("\\'", "'")
++	  before_str = before_str.gsub('"', "\\\"")
++	  after_str = after_str.gsub("\\'", "'")
++	  after_str = after_str.gsub('"', "\\\"")
+           '"'
+         else
+           before_quote_char || after_quote_char
+         end
+ 
+       res = ""
+-      res << 'unquote(' if unquote
+-      res << quote_char if quote_char
+-      res << before_str
+-      res << '#{' << @mid.to_sass(opts) << '}'
+-      res << after_str
+-      res << quote_char if quote_char
+-      res << ')' if unquote
++      res += 'unquote(' if unquote
++      res += quote_char if quote_char
++      res += before_str
++      res += '#{' + @mid.to_sass(opts) + '}'
++      res += after_str
++      res += quote_char if quote_char
++      res += ')' if unquote
+       res
+     end
+ 
+@@ -78,10 +78,10 @@ module Sass::Script
+     def _perform(environment)
+       res = ""
+       before = @before.perform(environment)
+-      res << before.value
++      res += before.value
+       mid = @mid.perform(environment)
+-      res << (mid.is_a?(Sass::Script::String) ? mid.value : mid.to_s)
+-      res << @after.perform(environment).value
++      res += (mid.is_a?(Sass::Script::String) ? mid.value : mid.to_s)
++      res += @after.perform(environment).value
+       opts(Sass::Script::String.new(res, before.type))
+     end
+ 
+diff --git a/lib/sass/scss/parser.rb b/lib/sass/scss/parser.rb
+index 700b347..df5f802 100644
+--- a/lib/sass/scss/parser.rb
++++ b/lib/sass/scss/parser.rb
+@@ -23,7 +23,7 @@ module Sass
+       # @return [Sass::Tree::RootNode] The root node of the document tree
+       # @raise [Sass::SyntaxError] if there's a syntax error in the document
+       def parse
+-        init_scanner!
++	@scanner = init_scanner
+         root = stylesheet
+         expected("selector or at-rule") unless @scanner.eos?
+         root
+@@ -36,7 +36,7 @@ module Sass
+       # @return [Array<String, Sass::Script::Node>, nil]
+       #   The interpolated identifier, or nil if none could be parsed
+       def parse_interp_ident
+-        init_scanner!
++	@scanner = init_scanner
+         interp_ident
+       end
+ 
+@@ -46,7 +46,7 @@ module Sass
+       # @raise [Sass::SyntaxError] if there's a syntax error in the query list,
+       #   or if it doesn't take up the entire input string.
+       def parse_media_query_list
+-        init_scanner!
++	@scanner = init_scanner
+         ql = media_query_list
+         expected("media query list") unless @scanner.eos?
+         ql
+@@ -56,7 +56,7 @@ module Sass
+ 
+       include Sass::SCSS::RX
+ 
+-      def init_scanner!
++      def init_scanner
+         @scanner =
+           if @template.is_a?(StringScanner)
+             @template
+@@ -108,11 +108,13 @@ module Sass
+           value = [text.sub(/^\s*\/\//, '/*').gsub(/^\s*\/\//, ' *') + ' */']
+         else
+           value = Sass::Engine.parse_interp(text, line, @scanner.pos - text.size, :filename => @filename)
+-          value[0].slice!(2) if loud # get rid of the "!"
+-          value.unshift(@scanner.
+-            string[0...@scanner.pos].
+-            reverse[/.*?\*\/(.*?)($|\Z)/, 1].
+-            reverse.gsub(/[^\s]/, ' '))
++	  value[0] = value[0][0...2] + value[0][3..-1] if loud # get rid of the "!"
++
++	  pre_str = @scanner.string[0...@scanner.pos].reverse
++	  pre_str = pre_str[/.*?\*\/(.*?)($|\Z)/m, 1] || ''
++	  pre_str = pre_str.reverse.gsub(/[^\s]/, ' ')
++
++	  value.unshift(pre_str)
+         end
+ 
+         type = if silent then :silent elsif loud then :loud else :normal end
+@@ -415,13 +417,17 @@ module Sass
+       def _moz_document_directive
+         res = ["@-moz-document "]
+         loop do
+-          res << str{ss} << expr!(:moz_document_function)
++	  wtf_opal res
+           break unless c = tok(/,/)
+           res << c
+         end
+         directive_body(res.flatten)
+       end
+ 
++      def wtf_opal(res)
++	  res << str{ss} << expr!(:moz_document_function)
++      end
++
+       def moz_document_function
+         return unless val = interp_uri || _interp_string(:url_prefix) ||
+           _interp_string(:domain) || function(!:allow_var) || interpolation
+@@ -455,11 +461,12 @@ module Sass
+       def supports_operator
+         return unless cond = supports_condition_in_parens
+         return cond unless op = tok(/and|or/i)
+-        begin
++	loop do
+           ss
+           cond = Sass::Supports::Operator.new(
+             cond, expr!(:supports_condition_in_parens), op)
+-        end while op = tok(/and|or/i)
++	  break unless op = tok(/and|or/i)
++	end
+         cond
+       end
+ 
+@@ -588,7 +595,7 @@ module Sass
+ 
+         ws = ''
+         while tok(/,/)
+-          ws << str {ss}
++	  ws += str {ss}
+           if v = selector
+             rules << ',' << ws
+             rules.concat v
+@@ -608,7 +615,7 @@ module Sass
+         selectors = [sel]
+         ws = ''
+         while tok(/,/)
+-          ws << str{ss}
++	  ws += str{ss}
+           if sel = _selector
+             selectors << sel
+             selectors[-1] = Selector::Sequence.new(["\n"] + selectors.last.members) if ws.include?("\n")
+@@ -674,7 +681,7 @@ module Sass
+             expected('"{"') if res.length == 1 && res[0].is_a?(Selector::Universal)
+             throw_error {expected('"{"')}
+           rescue Sass::SyntaxError => e
+-            e.message << "\n\n\"#{sel}\" may only be used at the beginning of a selector."
++	    e.append_to_err "\n\n\"#{sel}\" may only be used at the beginning of a selector."
+             raise e
+           end
+         end
+@@ -944,7 +951,7 @@ MESSAGE
+         # @scanner[2].empty? means we've started an interpolated section
+         while @scanner[2] == '#{'
+           @scanner.pos -= 2 # Don't consume the #{
+-          res.last.slice!(-2..-1)
++	  res[-1] = res.last.slice(0...-2)
+           res << expr!(:interpolation) << tok(mid_re)
+         end
+         res
+@@ -1006,7 +1013,7 @@ MESSAGE
+         unless @strs.empty?
+           # Convert to CSS manually so that comments are ignored.
+           src = result.to_sass
+-          @strs.each {|s| s << src}
++	  @strs = @strs.map {|s| s += res}
+         end
+         @line = parser.line
+         result
+@@ -1112,17 +1119,17 @@ MESSAGE
+         after = scanner.string[0...pos]
+         # Get rid of whitespace between pos and the last token,
+         # but only if there's a newline in there
+-        after.gsub!(/\s*\n\s*$/, '')
++	after = after.gsub(/\s*\n\s*$/, '')
+         # Also get rid of stuff before the last newline
+-        after.gsub!(/.*\n/, '')
++	after = after.gsub(/.*\n/, '')
+         after = "..." + after[-15..-1] if after.size > 18
+ 
+         was = scanner.rest.dup
+         # Get rid of whitespace between pos and the next token,
+         # but only if there's a newline in there
+-        was.gsub!(/^\s*\n\s*/, '')
++	was = was.gsub(/^\s*\n\s*/, '')
+         # Also get rid of stuff after the next newline
+-        was.gsub!(/\n.*/, '')
++	was = was.gsub(/\n.*/, '')
+         was = was[0...15] + "..." if was.size > 18
+ 
+         raise Sass::SyntaxError.new(
+@@ -1146,12 +1153,12 @@ MESSAGE
+           # matched group will always occur at the end of the match.
+           if last_group_lookahead && @scanner[-1]
+             @scanner.pos -= @scanner[-1].length
+-            res.slice!(-@scanner[-1].length..-1)
++	    res = res.slice(0...-@scanner[-1].length)
+           end
+           @line += res.count(NEWLINE)
+           @expected = nil
+           if !@strs.empty? && rx != COMMENT && rx != SINGLE_LINE_COMMENT
+-            @strs.each {|s| s << res}
++	    @strs = @strs.map {|s| s += res}
+           end
+           res
+         end
+diff --git a/lib/sass/scss/rx.rb b/lib/sass/scss/rx.rb
+index abeb072..c2d7fb9 100644
+--- a/lib/sass/scss/rx.rb
++++ b/lib/sass/scss/rx.rb
+@@ -15,13 +15,19 @@ module Sass
+         return "\\#{str}" if str == '-' || str == '_'
+         out = ""
+         value = str.dup
+-        out << value.slice!(0...1) if value =~ /^[-_]/
++
++	if value =~ /^[-_]/
++	  out += value.slice(0...1)
++	  value = value.slice(1..-1)
++	end
+         if value[0...1] =~ NMSTART
+-          out << value.slice!(0...1)
++	  out += value.slice(0...1)
++	  value = value.slice(1..-1)
+         else
+-          out << escape_char(value.slice!(0...1))
++	  out += escape_char(value.slice(0...1))
++	  value = value.slice(1..-1)
+         end
+-        out << value.gsub(/[^a-zA-Z0-9_-]/) {|c| escape_char c}
++	out += value.gsub(/[^a-zA-Z0-9_-]/) {|c| escape_char c}
+         return out
+       end
+ 
+@@ -46,35 +52,39 @@ module Sass
+         Regexp.new(Regexp.quote(str), flags)
+       end
+ 
++      IS_OPAL = RUBY_PLATFORM.eql? 'opal'
+       H        = /[0-9a-fA-F]/
+       NL       = /\n|\r\n|\r|\f/
+-      UNICODE  = /\\#{H}{1,6}[ \t\r\n\f]?/
++      UNICODE  = /\\#{H.source}{1,6}[ \t\r\n\f]?/
+       s = if Sass::Util.ruby1_8?
+             '\200-\377'
++	  elsif IS_OPAL
++	    "[\\x80-\\uD7FF\\uDC00-\\uFFFF\]|[\\uD800-\\uDBFF\][\\uDC00-\\uDFFF\]|[\\uD800-\\uDBFF]"
+           elsif Sass::Util.macruby?
+             '\u0080-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF'
+           else
+             '\u{80}-\u{D7FF}\u{E000}-\u{FFFD}\u{10000}-\u{10FFFF}'
+           end
+-      NONASCII = /[#{s}]/
+-      ESCAPE   = /#{UNICODE}|\\[ -~#{s}]/
+-      NMSTART  = /[_a-zA-Z]|#{NONASCII}|#{ESCAPE}/
+-      NMCHAR   = /[a-zA-Z0-9_-]|#{NONASCII}|#{ESCAPE}/
+-      STRING1  = /\"((?:[^\n\r\f\\"]|\\#{NL}|#{ESCAPE})*)\"/
+-      STRING2  = /\'((?:[^\n\r\f\\']|\\#{NL}|#{ESCAPE})*)\'/
+-
+-      IDENT    = /-?#{NMSTART}#{NMCHAR}*/
+-      NAME     = /#{NMCHAR}+/
++      NONASCII = IS_OPAL ? /#{s}/ : /[#{s}]/
++      ESCAPE   =  IS_OPAL ? /#{UNICODE.source}|\\(?:[ -~]|#{s})/ : /#{UNICODE.source}|\\[ -~#{s}]/
++      NMSTART  = /[_a-zA-Z]|#{NONASCII.source}|#{ESCAPE.source}/
++      NMCHAR   = /[a-zA-Z0-9_-]|#{NONASCII.source}|#{ESCAPE.source}/
++      STRING1  = /\"((?:[^\n\r\f\\"]|\\#{NL.source}|#{ESCAPE.source})*)\"/
++      STRING2  = /\'((?:[^\n\r\f\\']|\\#{NL.source}|#{ESCAPE.source})*)\'/
++
++      IDENT    = /-?(?:#{NMSTART.source})(?:#{NMCHAR.source})*/
++      NAME     = /(?:#{NMCHAR.source})+/
+       NUM      = /[0-9]+|[0-9]*\.[0-9]+/
+-      STRING   = /#{STRING1}|#{STRING2}/
+-      URLCHAR  = /[#%&*-~]|#{NONASCII}|#{ESCAPE}/
+-      URL      = /(#{URLCHAR}*)/
++
++      STRING   = /#{STRING1.source}|#{STRING2.source}/
++      URLCHAR  = /[#%&*-~]|#{NONASCII.source}|#{ESCAPE.source}/
++      URL      = /((?:#{URLCHAR.source})*)/
+       W        = /[ \t\r\n\f]*/
+-      VARIABLE = /(\$)(#{Sass::SCSS::RX::IDENT})/
++      VARIABLE = /(\$)(#{Sass::SCSS::RX::IDENT.source})/
+ 
+       # This is more liberal than the spec's definition,
+       # but that definition didn't work well with the greediness rules
+-      RANGE    = /(?:#{H}|\?){1,6}/
++      RANGE    = /(?:#{H.source}|\?){1,6}/
+ 
+       ##
+ 
+@@ -91,39 +101,39 @@ module Sass
+       SUFFIXMATCH    = quote("$=")
+       SUBSTRINGMATCH = quote("*=")
+ 
+-      HASH = /##{NAME}/
++      HASH = /##{NAME.source}/
+ 
+-      IMPORTANT = /!#{W}important/i
+-      DEFAULT = /!#{W}default/i
++      IMPORTANT = /!#{W.source}[iI][mM][pP][oO][rR][tT][aA][nN][tT]/
++      DEFAULT = /!#{W.source}[dD][eE][fF][aA][uU][lL][tT]/
+ 
+-      NUMBER = /#{NUM}(?:#{IDENT}|%)?/
++      NUMBER = /(?:#{NUM.source})(?:#{IDENT.source}|%)?/
+ 
+-      URI = /url\(#{W}(?:#{STRING}|#{URL})#{W}\)/i
+-      FUNCTION = /#{IDENT}\(/
++      URI = /[uU][rR][lL]\(#{W.source}(?:#{STRING.source}|#{URL.source})#{W.source}\)/
++      FUNCTION = /#{IDENT.source}\(/
+ 
+-      UNICODERANGE = /u\+(?:#{H}{1,6}-#{H}{1,6}|#{RANGE})/i
++      UNICODERANGE = /[uU]\+(?:#{H.source}{1,6}-#{H.source}{1,6}|#{RANGE.source})/
+ 
+       # Defined in http://www.w3.org/TR/css3-selectors/#lex
+-      PLUS = /#{W}\+/
+-      GREATER = /#{W}>/
+-      TILDE = /#{W}~/
++      PLUS = /#{W.source}\+/
++      GREATER = /#{W.source}>/
++      TILDE = /#{W.source}~/
+       NOT = quote(":not(", Regexp::IGNORECASE)
+ 
+       # Defined in https://developer.mozilla.org/en/CSS/@-moz-document as a
+       # non-standard version of http://www.w3.org/TR/css3-conditional/
+-      URL_PREFIX = /url-prefix\(#{W}(?:#{STRING}|#{URL})#{W}\)/i
+-      DOMAIN = /domain\(#{W}(?:#{STRING}|#{URL})#{W}\)/i
++      URL_PREFIX = /[uU][rR][lL]-[pP][rR][eE][fF][iI][xX]\(#{W.source}(?:#{STRING.source}|#{URL.source})#{W.source}\)/i
++      DOMAIN = /[dD][oO][mM][aA][iI][nN]\(#{W.source}(?:#{STRING.source}|#{URL.source})#{W.source}\)/i
+ 
+       # Custom
+       HEXCOLOR = /\#[0-9a-fA-F]+/
+       INTERP_START = /#\{/
+       ANY = /:(-[-\w]+-)?any\(/i
+-      OPTIONAL = /!#{W}optional/i
++      OPTIONAL = /!#{W.source}optional/i
+ 
+       IDENT_HYPHEN_INTERP = /-(#\{)/
+-      STRING1_NOINTERP = /\"((?:[^\n\r\f\\"#]|#(?!\{)|\\#{NL}|#{ESCAPE})*)\"/
+-      STRING2_NOINTERP = /\'((?:[^\n\r\f\\'#]|#(?!\{)|\\#{NL}|#{ESCAPE})*)\'/
+-      STRING_NOINTERP = /#{STRING1_NOINTERP}|#{STRING2_NOINTERP}/
++      STRING1_NOINTERP = /\"((?:[^\n\r\f\\"#]|#(?!\{)|\\#{NL.source}|#{ESCAPE.source})*)\"/
++      STRING2_NOINTERP = /\'((?:[^\n\r\f\\'#]|#(?!\{)|\\#{NL.source}|#{ESCAPE.source})*)\'/
++      STRING_NOINTERP = /#{STRING1_NOINTERP.source}|#{STRING2_NOINTERP.source}/
+       # Can't use IDENT here, because it seems to take exponential time on 1.8.
+       # We could use it for 1.9 only, but I don't want to introduce a cross-version
+       # behavior difference.
+@@ -133,8 +143,8 @@ module Sass
+       # about 50 characters. This mitigates the problem of exponential parsing
+       # time when a value has a long string of valid, parsable content followed
+       # by something invalid.
+-      STATIC_VALUE = /(-?#{NMSTART}|#{STRING_NOINTERP}|[ \t](?!%)|#[a-f0-9]|[,%]|#{NUM}|\!important){1,50}([;}])/i
+-      STATIC_SELECTOR = /(#{NMCHAR}|[ \t]|[,>+*]|[:#.]#{NMSTART}){0,50}([{])/i
++      STATIC_VALUE = /(-?#{NMSTART.source}|#{STRING_NOINTERP.source}|[ \t](?!%)|#[a-f0-9]|[,%]|#{NUM.source}|\!important){1,50}([;}])/i
++      STATIC_SELECTOR = /(#{NMCHAR.source}|[ \t]|[,>+*]|[:#.]#{NMSTART.source}){0,50}([{])/i
+     end
+   end
+ end
+diff --git a/lib/sass/scss/static_parser.rb b/lib/sass/scss/static_parser.rb
+index 9d473cd..fe2abcd 100644
+--- a/lib/sass/scss/static_parser.rb
++++ b/lib/sass/scss/static_parser.rb
+@@ -16,7 +16,7 @@ module Sass
+       # @return [Selector::CommaSequence] The parsed selector
+       # @raise [Sass::SyntaxError] if there's a syntax error in the selector
+       def parse_selector
+-        init_scanner!
++	@scanner = init_scanner
+         seq = expr!(:selector_comma_sequence)
+         expected("selector") unless @scanner.eos?
+         seq.line = @line
+diff --git a/lib/sass/selector.rb b/lib/sass/selector.rb
+index fd81cb8..83f2641 100644
+--- a/lib/sass/selector.rb
++++ b/lib/sass/selector.rb
+@@ -170,16 +170,20 @@ module Sass
+       #
+       # @see Selector#unify
+       def unify(sels)
++	should_exit = false
+         name =
+           case sels.first
+           when Universal; :universal
+           when Element; sels.first.name
+           else
++	    should_exit = true
+             return [self] + sels unless namespace.nil? || namespace == ['*']
+             return sels unless sels.empty?
+             return [self]
+           end
+ 
++	return name if should_exit
++
+         ns, accept = unify_namespaces(namespace, sels.first.namespace)
+         return unless accept
+         [name == :universal ? Universal.new(ns) : Element.new(name, ns)] + sels[1..-1]
+diff --git a/lib/sass/selector/comma_sequence.rb b/lib/sass/selector/comma_sequence.rb
+index 0b70140..9fc64a1 100644
+--- a/lib/sass/selector/comma_sequence.rb
++++ b/lib/sass/selector/comma_sequence.rb
+@@ -58,7 +58,7 @@ module Sass
+             # always contain the base selector.
+             #
+             # See https://github.com/nex3/sass/issues/324.
+-            extended.unshift seq unless seq.has_placeholder? || extended.include?(seq)
++            extended.unshift seq unless seq.has_placeholder? || extended.any?{ |i| i.to_a.join.eql? seq.to_a.join}
+             extended
+           end.flatten)
+       end
+diff --git a/lib/sass/selector/sequence.rb b/lib/sass/selector/sequence.rb
+index 2d12dc7..b900be7 100644
+--- a/lib/sass/selector/sequence.rb
++++ b/lib/sass/selector/sequence.rb
+@@ -364,9 +364,14 @@ module Sass
+         tail = seq.dup
+         until tail.empty?
+           head = []
+-          begin
++	  loop do
+             head << tail.shift
+-          end while !tail.empty? && head.last.is_a?(String) || tail.first.is_a?(String)
++	    if !tail.empty? && head.last.is_a?(String) || tail.first.is_a?(String)
++	      next
++	    else
++	      break
++	    end
++	  end
+           newseq << head
+         end
+         return newseq
+diff --git a/lib/sass/selector/simple_sequence.rb b/lib/sass/selector/simple_sequence.rb
+index 6055047..f03f96a 100644
+--- a/lib/sass/selector/simple_sequence.rb
++++ b/lib/sass/selector/simple_sequence.rb
+@@ -111,7 +111,7 @@ module Sass
+           [sels, new_seq]
+         end.compact.map do |sels, seq|
+           seen.include?(sels) ? [] : seq.do_extend(extends, parent_directives, seen + [sels])
+-        end.flatten.uniq
++	end.flatten.uniq{|v| v.to_a.sort.join }
+       end
+ 
+       # Unifies this selector with another {SimpleSequence}'s {SimpleSequence#members members array},
+diff --git a/lib/sass/shared.rb b/lib/sass/shared.rb
+index 54bd9bd..f015ecb 100644
+--- a/lib/sass/shared.rb
++++ b/lib/sass/shared.rb
+@@ -15,7 +15,7 @@ module Sass
+     # @return [String] The text remaining in the scanner after all `#{`s have been processed
+     def handle_interpolation(str)
+       scan = Sass::Util::MultibyteStringScanner.new(str)
+-      yield scan while scan.scan(/(.*?)(\\*)\#\{/m)
++      yield scan while scan.scan(/([\s\S]*?)(\\*)\#\{/m)
+       scan.rest
+     end
+ 
+@@ -41,7 +41,7 @@ module Sass
+       scanner = Sass::Util::MultibyteStringScanner.new(scanner) unless scanner.is_a? StringScanner
+       regexp = Regexp.new("(.*?)[\\#{start.chr}\\#{finish.chr}]", Regexp::MULTILINE)
+       while scanner.scan(regexp)
+-        str << scanner.matched
++	str += scanner.matched
+         count += 1 if scanner.matched[-1] == start
+         count -= 1 if scanner.matched[-1] == finish
+         return [str.strip, scanner.rest] if count == 0
+diff --git a/lib/sass/tree/comment_node.rb b/lib/sass/tree/comment_node.rb
+index 20886ea..1e7ca6e 100644
+--- a/lib/sass/tree/comment_node.rb
++++ b/lib/sass/tree/comment_node.rb
+@@ -70,8 +70,8 @@ module Sass::Tree
+     private
+ 
+     def normalize_indentation(str)
+-      pre = str.split("\n").inject(str[/^[ \t]*/].split("")) do |pre, line|
+-        line[/^[ \t]*/].split("").zip(pre).inject([]) do |arr, (a, b)|
++      pre = str.split("\n").inject(str[/^[ \t]*/].split("")) do |p, line|
++	line[/^[ \t]*/].split("").zip(p).inject([]) do |arr, (a, b)|
+           break arr if a != b
+           arr << a
+         end
+diff --git a/lib/sass/tree/css_import_node.rb b/lib/sass/tree/css_import_node.rb
+index 7dbd25b..b6cf210 100644
+--- a/lib/sass/tree/css_import_node.rb
++++ b/lib/sass/tree/css_import_node.rb
+@@ -52,7 +52,7 @@ module Sass::Tree
+       @resolved_value ||=
+         begin
+           str = "@import #{resolved_uri}"
+-          str << " #{resolved_query.to_css}" if resolved_query
++	  str += " #{resolved_query.to_css}" if resolved_query
+           str
+         end
+     end
+diff --git a/lib/sass/tree/import_node.rb b/lib/sass/tree/import_node.rb
+index 98bcfe1..049e19e 100644
+--- a/lib/sass/tree/import_node.rb
++++ b/lib/sass/tree/import_node.rb
+@@ -55,9 +55,9 @@ module Sass
+ 
+         message = "File to import not found or unreadable: #{@imported_filename}.\n"
+         if paths.size == 1
+-          message << "Load path: #{paths.first}"
++	  message += "Load path: #{paths.first}"
+         else
+-          message << "Load paths:\n  " << paths.join("\n  ")
++	  message += "Load paths:\n  " << paths.join("\n  ")
+         end
+         raise SyntaxError.new(message)
+       rescue SyntaxError => e
+diff --git a/lib/sass/tree/rule_node.rb b/lib/sass/tree/rule_node.rb
+index 779e67c..f858124 100644
+--- a/lib/sass/tree/rule_node.rb
++++ b/lib/sass/tree/rule_node.rb
+@@ -109,7 +109,7 @@ module Sass::Tree
+     #
+     # @return [{#to_s => #to_s}]
+     def debug_info
+-      {:filename => filename && ("file://" + URI.escape(File.expand_path(filename))),
++      {:filename => filename && ("file://" + URI.escape(filename)),
+        :line => self.line}
+     end
+ 
+diff --git a/lib/sass/tree/visitors/convert.rb b/lib/sass/tree/visitors/convert.rb
+index c81a87a..41a57fe 100644
+--- a/lib/sass/tree/visitors/convert.rb
++++ b/lib/sass/tree/visitors/convert.rb
+@@ -54,20 +54,20 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+     value = interp_to_src(node.value)
+     content = if @format == :sass
+       content = value.gsub(/\*\/$/, '').rstrip
+-      if content =~ /\A[ \t]/
++      if content =~ /^[ \t]/
+         # Re-indent SCSS comments like this:
+         #     /* foo
+         #   bar
+         #       baz */
+-        content.gsub!(/^/, '   ')
+-        content.sub!(/\A([ \t]*)\/\*/, '/*\1')
++	content = content.lines.map{|l| l.sub(/^/, '   ')}.join
++	content = content.sub(/^([ \t]*)\/\*/, '/*\1')
+       end
+ 
+       content =
+         unless content.include?("\n")
+           content
+         else
+-          content.gsub!(/\n( \*|\/\/)/, "\n  ")
++	  content = content.gsub(/\n( \*|\/\/)/, "\n  ")
+           spaces = content.scan(/\n( *)/).map {|s| s.first.size}.min
+           sep = node.type == :silent ? "\n//" : "\n *"
+           if spaces >= 2
+@@ -77,8 +77,8 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+           end
+         end
+ 
+-      content.gsub!(/\A\/\*/, '//') if node.type == :silent
+-      content.gsub!(/^/, tab_str)
++      content = content.gsub(/^\/\*/, '//') if node.type == :silent
++      content = content.lines.map{|l| l.sub(/^/, tab_str)}.join
+       content.rstrip + "\n"
+     else
+       spaces = (@tab_chars * [@tabs - value[/^ */].size, 0].max)
+@@ -89,7 +89,7 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+       end.gsub(/^/, spaces) + "\n"
+       content
+     end
+-    content.sub!(%r{^\s*(/\*)}, '/*!') if node.type == :loud #'
++    content = content.sub(%r{^\s*(/\*)}, '/*!') if node.type == :loud #'
+     content
+   end
+ 
+@@ -99,7 +99,7 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+ 
+   def visit_directive(node)
+     res = "#{tab_str}#{interp_to_src(node.value)}"
+-    res.gsub!(/^@import \#\{(.*)\}([^}]*)$/, '@import \1\2');
++    res = res.gsub(/^@import \#\{(.*)\}([^}]*)$/, '@import \1\2');
+     return res + "#{semi}\n" unless node.has_children
+     res + yield + "\n"
+   end
+@@ -137,10 +137,10 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+       end
+     @is_else = false
+     str = "#{tab_str}@#{name}"
+-    str << " #{node.expr.to_sass(@options)}" if node.expr
+-    str << yield
++    str += " #{node.expr.to_sass(@options)}" if node.expr
++    str += yield
+     @is_else = true
+-    str << visit(node.else) if node.else
++    str += visit(node.else) if node.else
+     str
+   ensure
+     @is_else = false
+@@ -165,7 +165,7 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+     else
+       str = "#{tab_str}@import #{node.uri}"
+     end
+-    str << " #{interp_to_src(node.query)}" unless node.query.empty?
++    str += " #{interp_to_src(node.query)}" unless node.query.empty?
+     "#{str}#{semi}\n"
+   end
+ 
+@@ -175,7 +175,7 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+         ""
+       else
+         str = '('
+-        str << node.args.map do |v, d|
++	str += node.args.map do |v, d|
+           if d
+             "#{v.to_sass(@options)}: #{d.to_sass(@options)}"
+           else
+@@ -184,11 +184,11 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+         end.join(", ")
+ 
+         if node.splat
+-          str << ", " unless node.args.empty?
+-          str << node.splat.to_sass(@options) << '...'
++	  str += ", " unless node.args.empty?
++	  str += node.splat.to_sass(@options) + '...'
+         end
+ 
+-        str << ')'
++	str += ')'
+       end
+ 
+     "#{tab_str}#{@format == :sass ? '=' : '@mixin '}#{dasherize(node.name)}#{args}#{yield}"
+@@ -226,13 +226,13 @@ class Sass::Tree::Visitors::Convert < Sass::Tree::Visitors::Base
+     if @format == :sass
+       name = selector_to_sass(node.rule)
+       name = "\\" + name if name[0] == ?:
+-      name.gsub(/^/, tab_str) + yield
++      return name.lines.map{|l| l.sub(/^/, tab_str)}.join + yield
+     elsif @format == :scss
+       name = selector_to_scss(node.rule)
+       res = name + yield
+       if node.children.last.is_a?(Sass::Tree::CommentNode) && node.children.last.type == :silent
+-        res.slice!(-3..-1)
+-        res << "\n" << tab_str << "}\n"
++	res = res.slice(0...-3)
++	res += "\n" + tab_str + "}\n"
+       end
+       res
+     end
+diff --git a/lib/sass/tree/visitors/perform.rb b/lib/sass/tree/visitors/perform.rb
+index 452e116..069fb52 100644
+--- a/lib/sass/tree/visitors/perform.rb
++++ b/lib/sass/tree/visitors/perform.rb
+@@ -132,7 +132,7 @@ class Sass::Tree::Visitors::Perform < Sass::Tree::Visitors::Base
+   def visit_comment(node)
+     return [] if node.invisible?
+     node.resolved_value = run_interp_no_strip(node.value)
+-    node.resolved_value.gsub!(/\\([\\#])/, '\1')
++    node.resolved_value = node.resolved_value.gsub(/\\([\\#])/, '\1')
+     node
+   end
+ 
+@@ -330,9 +330,9 @@ class Sass::Tree::Visitors::Perform < Sass::Tree::Visitors::Base
+     res = node.expr.perform(@environment)
+     res = res.value if res.is_a?(Sass::Script::String)
+     msg = "WARNING: #{res}\n         "
+-    msg << stack_trace.join("\n         ")
++    msg += stack_trace.join("\n         ")
+     # JRuby doesn't automatically add a newline for #warn
+-    msg << (RUBY_PLATFORM =~ /java/ ? "\n\n" : "\n")
++    msg += (RUBY_PLATFORM =~ /java/ ? "\n\n" : "\n")
+     Sass::Util.sass_warn msg
+     []
+   ensure
+@@ -382,8 +382,8 @@ class Sass::Tree::Visitors::Perform < Sass::Tree::Visitors::Base
+     stack.each_cons(2) {|(e1, e2)| e1[:caller] = e2[:name]; [e1, e2]}
+     stack.each_with_index do |entry, i|
+       msg = "#{i == 0 ? "on" : "from"} line #{entry[:line]}"
+-      msg << " of #{entry[:filename] || "an unknown file"}"
+-      msg << ", in `#{entry[:caller]}'" if entry[:caller]
++      msg += " of #{entry[:filename] || "an unknown file"}"
++      msg += ", in `#{entry[:caller]}'" if entry[:caller]
+       trace << msg
+     end
+     trace
+@@ -421,7 +421,7 @@ class Sass::Tree::Visitors::Perform < Sass::Tree::Visitors::Base
+     return if mixins.empty?
+     raise Sass::SyntaxError.new("#{msg} #{node.name} includes itself") if mixins.size == 1
+ 
+-    msg << "\n" << Sass::Util.enum_cons(mixins.reverse + [node.name], 2).map do |m1, m2|
++    msg += "\n" << Sass::Util.enum_cons(mixins.reverse + [node.name], 2).map do |m1, m2|
+       "    #{m1} includes #{m2}"
+     end.join("\n")
+     raise Sass::SyntaxError.new(msg)
+@@ -435,7 +435,7 @@ class Sass::Tree::Visitors::Perform < Sass::Tree::Visitors::Base
+     end
+ 
+     files << node.filename << node.imported_file.options[:filename]
+-    msg << "\n" << Sass::Util.enum_cons(files, 2).map do |m1, m2|
++    msg += "\n" << Sass::Util.enum_cons(files, 2).map do |m1, m2|
+       "    #{m1} imports #{m2}"
+     end.join("\n")
+     raise Sass::SyntaxError.new(msg)
+diff --git a/lib/sass/tree/visitors/to_css.rb b/lib/sass/tree/visitors/to_css.rb
+index dfae0a3..29d1d57 100644
+--- a/lib/sass/tree/visitors/to_css.rb
++++ b/lib/sass/tree/visitors/to_css.rb
+@@ -25,25 +25,15 @@ class Sass::Tree::Visitors::ToCss < Sass::Tree::Visitors::Base
+     node.children.each do |child|
+       next if child.invisible?
+       child_str = visit(child)
+-      result << child_str + (node.style == :compressed ? '' : "\n")
++      result += child_str + (node.style == :compressed ? '' : "\n")
+     end
+-    result.rstrip!
++    result = result.rstrip
+     return "" if result.empty?
+-    result << "\n"
+-    unless Sass::Util.ruby1_8? || result.ascii_only?
+-      if node.children.first.is_a?(Sass::Tree::CharsetNode)
+-        begin
+-          encoding = node.children.first.name
+-          # Default to big-endian encoding, because we have to decide somehow
+-          encoding << 'BE' if encoding =~ /\Autf-(16|32)\Z/i
+-          result = result.encode(Encoding.find(encoding))
+-        rescue EncodingError
+-        end
+-      end
+-
+-      result = "@charset \"#{result.encoding.name}\";#{
++    result += "\n"
++    unless Sass::Util.ruby1_8? || !(result =~ /[^ -~\n]/)
++      result = "@charset \"UTF-8\";#{
+         node.style == :compressed ? '' : "\n"
+-      }".encode(result.encoding) + result
++      }" + result
+     end
+     result
+   rescue Sass::SyntaxError => e
+@@ -59,9 +49,9 @@ class Sass::Tree::Visitors::ToCss < Sass::Tree::Visitors::Base
+     return if node.invisible?
+     spaces = ('  ' * [@tabs - node.resolved_value[/^ */].size, 0].max)
+ 
+-    content = node.resolved_value.gsub(/^/, spaces)
+-    content.gsub!(%r{^(\s*)//(.*)$}) {|md| "#{$1}/*#{$2} */"} if node.type == :silent
+-    content.gsub!(/\n +(\* *(?!\/))?/, ' ') if (node.style == :compact || node.style == :compressed) && node.type != :loud
++    content = node.resolved_value.lines.map{|l| l.sub(/^/, spaces)}.join
++    content = content.gsub(%r{^(\s*)//(.*)$}) {|md| "#{$1}/*#{$2} */"} if node.type == :silent
++    content = content.gsub(/\n +(\* *(?!\/))?/, ' ') if (node.style == :compact || node.style == :compressed) && node.type != :loud
+     content
+   end
+ 
+@@ -82,20 +72,20 @@ class Sass::Tree::Visitors::ToCss < Sass::Tree::Visitors::Base
+       next if child.invisible?
+       if node.style == :compact
+         if child.is_a?(Sass::Tree::PropNode)
+-          with_tabs(first || was_prop ? 0 : @tabs + 1) {result << visit(child) << ' '}
++	  with_tabs(first || was_prop ? 0 : @tabs + 1) {result += visit(child) + ' '}
+         else
+-          result[-1] = "\n" if was_prop
++	  result = result[0...-1] + "\n" if was_prop
+           rendered = with_tabs(@tabs + 1) {visit(child).dup}
+           rendered = rendered.lstrip if first
+-          result << rendered.rstrip + "\n"
++	  result += rendered.rstrip + "\n"
+         end
+         was_prop = child.is_a?(Sass::Tree::PropNode)
+         first = false
+       elsif node.style == :compressed
+-        result << (was_prop ? ";" : "") << with_tabs(0) {visit(child)}
++	result += (was_prop ? ";" : "") + with_tabs(0) {visit(child)}
+         was_prop = child.is_a?(Sass::Tree::PropNode)
+       else
+-        result << with_tabs(@tabs + 1) {visit(child)} + "\n"
++	result += with_tabs(@tabs + 1) {visit(child)} + "\n"
+       end
+     end
+     result.rstrip + if node.style == :compressed
+@@ -109,7 +99,9 @@ class Sass::Tree::Visitors::ToCss < Sass::Tree::Visitors::Base
+ 
+   def visit_media(node)
+     str = with_tabs(@tabs + node.tabs) {visit_directive(node)}
+-    str.gsub!(/\n\Z/, '') unless node.style == :compressed || node.group_end
++    unless node.style == :compressed || node.group_end
++      str = str[0..-2] if str[-1] == "\n"
++    end
+     str
+   end
+ 
+@@ -147,29 +139,29 @@ class Sass::Tree::Visitors::ToCss < Sass::Tree::Visitors::Base
+         next if seq.has_placeholder?
+         rule_part = seq.to_a.join
+         if node.style == :compressed
+-          rule_part.gsub!(/([^,])\s*\n\s*/m, '\1 ')
+-          rule_part.gsub!(/\s*([,+>])\s*/m, '\1')
+-          rule_part.strip!
++	  rule_part = rule_part.gsub(/([^,])\s*\n\s*/m, '\1 ')
++	  rule_part = rule_part.gsub(/\s*([,+>])\s*/m, '\1')
++	  rule_part = rule_part.strip
+         end
+         rule_part
+       end.compact.join(rule_separator)
+ 
+-      joined_rules.sub!(/\A\s*/, per_rule_indent)
+-      joined_rules.gsub!(/\s*\n\s*/, "#{line_separator}#{per_rule_indent}")
+-      total_rule = total_indent << joined_rules
++      joined_rules = joined_rules.sub(/^\s*/, per_rule_indent)
++      joined_rules = joined_rules.gsub(/\s*\n\s*/, "#{line_separator}#{per_rule_indent}")
++      total_rule = total_indent += joined_rules
+ 
+       to_return = ''
+       old_spaces = '  ' * @tabs
+       spaces = '  ' * (@tabs + 1)
+       if node.style != :compressed
+         if node.options[:debug_info] && !@in_directive
+-          to_return << visit(debug_info_rule(node.debug_info, node.options)) << "\n"
++	  to_return +=visit(debug_info_rule(node.debug_info, node.options)) << "\n"
+         elsif node.options[:trace_selectors]
+-          to_return << "#{old_spaces}/* "
+-          to_return << node.stack_trace.join("\n   #{old_spaces}")
+-          to_return << " */\n"
++	  to_return +="#{old_spaces}/* "
++	  to_return +=node.stack_trace.join("\n   #{old_spaces}")
++	  to_return +=" */\n"
+         elsif node.options[:line_comments]
+-          to_return << "#{old_spaces}/* line #{node.line}"
++	  to_return +="#{old_spaces}/* line #{node.line}"
+ 
+           if node.filename
+             relative_filename = if node.options[:css_filename]
+@@ -181,23 +173,23 @@ class Sass::Tree::Visitors::ToCss < Sass::Tree::Visitors::Base
+               end
+             end
+             relative_filename ||= node.filename
+-            to_return << ", #{relative_filename}"
++	    to_return += ", #{relative_filename}"
+           end
+ 
+-          to_return << " */\n"
++	  to_return += " */\n"
+         end
+       end
+ 
+       if node.style == :compact
+         properties = with_tabs(0) {node.children.map {|a| visit(a)}.join(' ')}
+-        to_return << "#{total_rule} { #{properties} }#{"\n" if node.group_end}"
++	to_return += "#{total_rule} { #{properties} }#{"\n" if node.group_end}"
+       elsif node.style == :compressed
+         properties = with_tabs(0) {node.children.map {|a| visit(a)}.join(';')}
+-        to_return << "#{total_rule}{#{properties}}"
++	to_return += "#{total_rule}{#{properties}}"
+       else
+         properties = with_tabs(@tabs + 1) {node.children.map {|a| visit(a)}.join("\n")}
+         end_props = (node.style == :expanded ? "\n" + old_spaces : ' ')
+-        to_return << "#{total_rule} {\n#{properties}#{end_props}}#{"\n" if node.group_end}"
++	to_return += "#{total_rule} {\n#{properties}#{end_props}}#{"\n" if node.group_end}"
+       end
+ 
+       to_return
+diff --git a/lib/sass/util.rb b/lib/sass/util.rb
+index 42f75b6..279328e 100644
+--- a/lib/sass/util.rb
++++ b/lib/sass/util.rb
+@@ -134,7 +134,7 @@ module Sass
+       arr.inject([]) do |a, e|
+         if e.is_a?(String)
+           if a.last.is_a?(String)
+-            a.last << e
++	    a[-1] = a.last + e
+           else
+             a << e.dup
+           end
+@@ -179,8 +179,8 @@ module Sass
+     # @param arr [Array]
+     # @return [Array] `arr`
+     def strip_string_array(arr)
+-      arr.first.lstrip! if arr.first.is_a?(String)
+-      arr.last.rstrip! if arr.last.is_a?(String)
++      arr[0] = arr.first.lstrip if arr.first.is_a?(String)
++      arr[-1] = arr.last.rstrip if arr.last.is_a?(String)
+       arr
+     end
+ 
+@@ -229,8 +229,7 @@ module Sass
+     # @param hash [Hash]
+     # @return [Array]
+     def hash_to_a(hash)
+-      return hash.to_a unless ruby1_8? || defined?(Test::Unit)
+-      return hash.sort_by {|k, v| k}
++      return hash.to_a
+     end
+ 
+     # Performs the equivalent of `enum.group_by.to_a`, but with a guaranteed
+@@ -302,7 +301,7 @@ module Sass
+       info = entry.scan(/^(.*?):(-?.*?)(?::.*`(.+)')?$/).first
+       info[1] = info[1].to_i
+       # This is added by Rubinius to designate a block, but we don't care about it.
+-      info[2].sub!(/ \{\}\Z/, '') if info[2]
++      info[0] = info[2].sub(/ \{\}$/, '') if info[2]
+       info
+     end
+ 
+@@ -507,29 +506,7 @@ module Sass
+     # @yieldparam msg [String] The error message to be raised
+     # @return [String] `str`, potentially with encoding gotchas like BOMs removed
+     def check_encoding(str)
+-      if ruby1_8?
+-        return str.gsub(/\A\xEF\xBB\xBF/, '') # Get rid of the UTF-8 BOM
+-      elsif str.valid_encoding?
+-        # Get rid of the Unicode BOM if possible
+-        if str.encoding.name =~ /^UTF-(8|16|32)(BE|LE)?$/
+-          return str.gsub(Regexp.new("\\A\uFEFF".encode(str.encoding.name)), '')
+-        else
+-          return str
+-        end
+-      end
+-
+-      encoding = str.encoding
+-      newlines = Regexp.new("\r\n|\r|\n".encode(encoding).force_encoding("binary"))
+-      str.force_encoding("binary").split(newlines).each_with_index do |line, i|
+-        begin
+-          line.encode(encoding)
+-        rescue Encoding::UndefinedConversionError => e
+-          yield <<MSG.rstrip, i + 1
+-Invalid #{encoding.name} character #{e.error_char.dump}
+-MSG
+-        end
+-      end
+-      return str
++      str
+     end
+ 
+     # Like {\#check\_encoding}, but also checks for a `@charset` declaration
+@@ -552,30 +529,7 @@ MSG
+     #   cannot be converted to UTF-8
+     # @raise [ArgumentError] if the document uses an unknown encoding with `@charset`
+     def check_sass_encoding(str, &block)
+-      return check_encoding(str, &block), nil if ruby1_8?
+-      # We allow any printable ASCII characters but double quotes in the charset decl
+-      bin = str.dup.force_encoding("BINARY")
+-      encoding = Sass::Util::ENCODINGS_TO_CHECK.find do |enc|
+-        re = Sass::Util::CHARSET_REGEXPS[enc]
+-        re && bin =~ re
+-      end
+-      charset, bom = $1, $2
+-      if charset
+-        charset = charset.force_encoding(encoding).encode("UTF-8")
+-        if endianness = encoding[/[BL]E$/]
+-          begin
+-            Encoding.find(charset + endianness)
+-            charset << endianness
+-          rescue ArgumentError # Encoding charset + endianness doesn't exist
+-          end
+-        end
+-        str.force_encoding(charset)
+-      elsif bom
+-        str.force_encoding(encoding)
+-      end
+-
+-      str = check_encoding(str, &block)
+-      return str.encode("UTF-8"), str.encoding
++      return str, str.encoding
+     end
+ 
+     unless ruby1_8?
+@@ -589,20 +543,20 @@ MSG
+       # without manually checking that each encoding
+       # encodes all ASCII characters properly,
+       # which takes long enough to affect the startup time of the CLI.
+-      ENCODINGS_TO_CHECK = %w[UTF-8 UTF-16BE UTF-16LE UTF-32BE UTF-32LE]
++      ENCODINGS_TO_CHECK = %w[UTF-8]
+ 
+       CHARSET_REGEXPS = Hash.new do |h, e|
+         h[e] =
+           begin
+-            # /\A(?:\uFEFF)?@charset "(.*?)"|\A(\uFEFF)/
+-            Regexp.new(/\A(?:#{_enc("\uFEFF", e)})?#{
+-              _enc('@charset "', e)}(.*?)#{_enc('"', e)}|\A(#{
++	    # /^(?:\uFEFF)?@charset "(.*?)"|^(\uFEFF)/
++	    Regexp.new(/^(?:#{_enc("\uFEFF", e)})?#{
++	      _enc('@charset "', e)}(.*?)#{_enc('"', e)}|^(#{
+               _enc("\uFEFF", e)})/)
+           rescue Encoding::ConverterNotFoundError => _
+             nil # JRuby on Java 5 doesn't support UTF-32
+           rescue
+-            # /\A@charset "(.*?)"/
+-            Regexp.new(/\A#{_enc('@charset "', e)}(.*?)#{_enc('"', e)}/)
++	    # /^@charset "(.*?)"/
++	    Regexp.new(/^#{_enc('@charset "', e)}(.*?)#{_enc('"', e)}/)
+           end
+       end
+     end
+diff --git a/lib/sass/util/multibyte_string_scanner.rb b/lib/sass/util/multibyte_string_scanner.rb
+index 890f2a8..d78f50c 100644
+--- a/lib/sass/util/multibyte_string_scanner.rb
++++ b/lib/sass/util/multibyte_string_scanner.rb
+@@ -20,11 +20,18 @@ else
+       @mb_last_pos = nil
+     end
+ 
+-    alias_method :byte_pos, :pos
++    def byte_pos
++      %x{utf8.encode(self.string.slice(0, #@mb_pos)).length}
++    end
+     alias_method :byte_matched_size, :matched_size
+ 
+     def check(pattern); _match super; end
+-    def check_until(pattern); _matched super; end
++    def check_until(pattern);
++      last_pos = @mb_pos
++      ret = _matched super;
++      @mb_pos = last_pos
++      ret
++    end
+     def getch; _forward _match super; end
+     def match?(pattern); _size check(pattern); end
+     def matched_size; @mb_matched_size; end
+@@ -58,7 +65,9 @@ else
+       # if the new position is close to the current one, just count the
+       # characters between the two; if the new position is closer to the
+       # beginning of the string, just count the characters from there.
+-      if @mb_pos - n < @mb_pos / 2
++      if RUBY_PLATFORM.eql? 'opal'
++	super(n)
++      elsif @mb_pos - n < @mb_pos / 2
+         # New position is close to old position
+         byte_delta = @mb_pos > n ? -string[n...@mb_pos].bytesize : string[@mb_pos...n].bytesize
+         super(byte_pos + byte_delta)
+diff --git a/lib/sass/version.rb b/lib/sass/version.rb
+index 4dcd587..83f48f8 100644
+--- a/lib/sass/version.rb
++++ b/lib/sass/version.rb
+@@ -1,126 +1,7 @@
+-require 'date'
+-
+-# This is necessary for loading Sass when Haml is required in Rails 3.
+-# Once the split is complete, we can remove it.
+-require File.dirname(__FILE__) + '/../sass'
+-require 'sass/util'
+-
++A="3.2.0 (Media Mark)"
+ module Sass
+-  # Handles Sass version-reporting.
+-  # Sass not only reports the standard three version numbers,
+-  # but its Git revision hash as well,
+-  # if it was installed from Git.
+   module Version
+-    include Sass::Util
+-
+-    # Returns a hash representing the version of Sass.
+-    # The `:major`, `:minor`, and `:teeny` keys have their respective numbers as Fixnums.
+-    # The `:name` key has the name of the version.
+-    # The `:string` key contains a human-readable string representation of the version.
+-    # The `:number` key is the major, minor, and teeny keys separated by periods.
+-    # The `:date` key, which is not guaranteed to be defined, is the [DateTime] at which this release was cut.
+-    # If Sass is checked out from Git, the `:rev` key will have the revision hash.
+-    # For example:
+-    #
+-    #     {
+-    #       :string => "2.1.0.9616393",
+-    #       :rev    => "9616393b8924ef36639c7e82aa88a51a24d16949",
+-    #       :number => "2.1.0",
+-    #       :date   => DateTime.parse("Apr 30 13:52:01 2009 -0700"),
+-    #       :major  => 2, :minor => 1, :teeny => 0
+-    #     }
+-    #
+-    # If a prerelease version of Sass is being used,
+-    # the `:string` and `:number` fields will reflect the full version
+-    # (e.g. `"2.2.beta.1"`), and the `:teeny` field will be `-1`.
+-    # A `:prerelease` key will contain the name of the prerelease (e.g. `"beta"`),
+-    # and a `:prerelease_number` key will contain the rerelease number.
+-    # For example:
+-    #
+-    #     {
+-    #       :string => "3.0.beta.1",
+-    #       :number => "3.0.beta.1",
+-    #       :date   => DateTime.parse("Mar 31 00:38:04 2010 -0700"),
+-    #       :major => 3, :minor => 0, :teeny => -1,
+-    #       :prerelease => "beta",
+-    #       :prerelease_number => 1
+-    #     }
+-    #
+-    # @return [{Symbol => String/Fixnum}] The version hash
+-    def version
+-      return @@version if defined?(@@version)
+-
+-      numbers = File.read(scope('VERSION')).strip.split('.').
+-        map {|n| n =~ /^[0-9]+$/ ? n.to_i : n}
+-      name = File.read(scope('VERSION_NAME')).strip
+-      @@version = {
+-        :major => numbers[0],
+-        :minor => numbers[1],
+-        :teeny => numbers[2],
+-        :name => name
+-      }
+-
+-      if date = version_date
+-        @@version[:date] = date
+-      end
+-
+-      if numbers[3].is_a?(String)
+-        @@version[:teeny] = -1
+-        @@version[:prerelease] = numbers[3]
+-        @@version[:prerelease_number] = numbers[4]
+-      end
+-
+-      @@version[:number] = numbers.join('.')
+-      @@version[:string] = @@version[:number].dup
+-
+-      if rev = revision_number
+-        @@version[:rev] = rev
+-        unless rev[0] == ?(
+-          @@version[:string] << "." << rev[0...7]
+-        end
+-      end
+-
+-      @@version[:string] << " (#{name})"
+-      @@version
+-    end
+-
+-    private
+-
+-    def revision_number
+-      if File.exists?(scope('REVISION'))
+-        rev = File.read(scope('REVISION')).strip
+-        return rev unless rev =~ /^([a-f0-9]+|\(.*\))$/ || rev == '(unknown)'
+-      end
+-
+-      return unless File.exists?(scope('.git/HEAD'))
+-      rev = File.read(scope('.git/HEAD')).strip
+-      return rev unless rev =~ /^ref: (.*)$/
+-
+-      ref_name = $1
+-      ref_file = scope(".git/#{ref_name}")
+-      info_file = scope(".git/info/refs")
+-      return File.read(ref_file).strip if File.exists?(ref_file)
+-      return unless File.exists?(info_file)
+-      File.open(info_file) do |f|
+-        f.each do |l|
+-          sha, ref = l.strip.split("\t", 2)
+-          next unless ref == ref_name
+-          return sha
+-        end
+-      end
+-      return nil
+-    end
+-
+-    def version_date
+-      return unless File.exists?(scope('VERSION_DATE'))
+-      return DateTime.parse(File.read(scope('VERSION_DATE')).strip)
+-    end
++    A
+   end
+-
+-  extend Sass::Version
+-
+-  # A string representing the version of Sass.
+-  # A more fine-grained representation is available from Sass.version.
+-  # @api public
+-  VERSION = version[:string] unless defined?(Sass::VERSION)
++  VERSION = A
+ end
+diff --git a/yard/callbacks.rb b/yard/callbacks.rb
+index d826e46..f0bd12c 100644
+--- a/yard/callbacks.rb
++++ b/yard/callbacks.rb
+@@ -1,5 +1,5 @@
+ class CallbacksHandler < YARD::Handlers::Ruby::Legacy::Base
+-  handles /\Adefine_callback(\s|\()/
++  handles /^define_callback(\s|\()/
+ 
+   def process
+     callback_name = tokval(statement.tokens[2])
+diff --git a/yard/inherited_hash.rb b/yard/inherited_hash.rb
+index f990aac..3f8cb01 100644
+--- a/yard/inherited_hash.rb
++++ b/yard/inherited_hash.rb
+@@ -1,5 +1,5 @@
+ class InheritedHashHandler < YARD::Handlers::Ruby::Legacy::Base
+-  handles /\Ainherited_hash(\s|\()/
++  handles /^inherited_hash(\s|\()/
+ 
+   def process
+     hash_name = tokval(statement.tokens[2])
+-- 
+2.10.0
+

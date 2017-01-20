@@ -61,7 +61,7 @@ module.exports = function(grunt) {
 
     function opalPath(l) {
       return {
-        'OPAL_LOAD_PATH': () => `${__dirname}/lib/${l}/lib/:${
+        'OPAL_LOAD_PATH': () => `${__dirname}/lib/rb/:${__dirname}/lib/${l}/lib/:${
             grunt.file.expand([
               './ruby/*/gems/opal*/*',
               './ruby/*/gems/*/lib/',
@@ -166,7 +166,7 @@ module.exports = function(grunt) {
       sass: {
         options: {
           cwd: './lib/sass',
-          from: '3.1.0'
+          from: '3.0.25'
         },
       },
       less: {
@@ -289,6 +289,7 @@ module.exports = function(grunt) {
         '!./test/sass/**/*bork*.sass',
         '!./test/sass/**/*_imported.sass',
         '!./test/sass/templates/subdir/**/*.sass',
+        '!./test/sass/templates/same_name_different_ext*'
       ],
       slim: [],
       haml: [],

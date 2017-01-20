@@ -1,6 +1,6 @@
-From 2a9282537d4b6a1687abf07886e367f04a1c1b1a Mon Sep 17 00:00:00 2001
+From cb30d6a3acaca37701d4cefe4ab4776252b75f1b Mon Sep 17 00:00:00 2001
 From: Patrick Kettner <patrickkettner@gmail.com>
-Date: Wed, 14 Dec 2016 21:04:56 -0800
+Date: Mon, 19 Dec 2016 02:42:22 -0500
 Subject: [PATCH] .
 
 ---
@@ -32,9 +32,9 @@ Subject: [PATCH] .
  lib/sass/tree/visitors/perform.rb         |  10 +--
  lib/sass/tree/visitors/to_css.rb          |  72 +++++++++----------
  lib/sass/util.rb                          |  67 +++---------------
- lib/sass/util/multibyte_string_scanner.rb |   4 +-
+ lib/sass/util/multibyte_string_scanner.rb |  15 +++-
  lib/sass/version.rb                       | 110 +-----------------------------
- 30 files changed, 258 insertions(+), 471 deletions(-)
+ 30 files changed, 267 insertions(+), 473 deletions(-)
 
 diff --git a/lib/sass/engine.rb b/lib/sass/engine.rb
 index 021473f..be793f5 100644
@@ -1001,7 +1001,7 @@ index 54bd9bd..f015ecb 100644
      def handle_interpolation(str)
        scan = Sass::Util::MultibyteStringScanner.new(str)
 -      yield scan while scan.scan(/(.*?)(\\*)\#\{/m)
-+      yield scan while scan.scan(/((?:.|\n)*?)(\\*)\#\{/m)
++      yield scan while scan.scan(/([\s\S]*?)(\\*)\#\{/m)
        scan.rest
      end
  
@@ -1492,21 +1492,41 @@ index 881c2d2..7a6bb8b 100644
        end
      end
 diff --git a/lib/sass/util/multibyte_string_scanner.rb b/lib/sass/util/multibyte_string_scanner.rb
-index 890f2a8..84d45c9 100644
+index 890f2a8..d78f50c 100644
 --- a/lib/sass/util/multibyte_string_scanner.rb
 +++ b/lib/sass/util/multibyte_string_scanner.rb
-@@ -21,8 +21,10 @@ else
+@@ -20,11 +20,18 @@ else
+       @mb_last_pos = nil
      end
  
-     alias_method :byte_pos, :pos
--    alias_method :byte_matched_size, :matched_size
- 
-+    def byte_matched_size
-+      matched && matched.bytesize
+-    alias_method :byte_pos, :pos
++    def byte_pos
++      %x{utf8.encode(self.string.slice(0, #@mb_pos)).length}
 +    end
+     alias_method :byte_matched_size, :matched_size
+ 
      def check(pattern); _match super; end
-     def check_until(pattern); _matched super; end
+-    def check_until(pattern); _matched super; end
++    def check_until(pattern);
++      last_pos = @mb_pos
++      ret = _matched super;
++      @mb_pos = last_pos
++      ret
++    end
      def getch; _forward _match super; end
+     def match?(pattern); _size check(pattern); end
+     def matched_size; @mb_matched_size; end
+@@ -58,7 +65,9 @@ else
+       # if the new position is close to the current one, just count the
+       # characters between the two; if the new position is closer to the
+       # beginning of the string, just count the characters from there.
+-      if @mb_pos - n < @mb_pos / 2
++      if RUBY_PLATFORM.eql? 'opal'
++	super(n)
++      elsif @mb_pos - n < @mb_pos / 2
+         # New position is close to old position
+         byte_delta = @mb_pos > n ? -string[n...@mb_pos].bytesize : string[@mb_pos...n].bytesize
+         super(byte_pos + byte_delta)
 diff --git a/lib/sass/version.rb b/lib/sass/version.rb
 index 3804f5f..f7aca8a 100644
 --- a/lib/sass/version.rb
