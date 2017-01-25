@@ -1,6 +1,6 @@
 describe('pug', function() {
-  this.timeout(5 * 60 * 1000)
-    var pugBuilder;
+  this.timeout(5 * 60 * 1000);
+  var pugBuilder;
   var pug;
 
   before(function() {

@@ -9,8 +9,11 @@ self.onmessage = function(ev) {
 
     try {
       result = self.LiveScript.compile(js, opts);
+      if (opts.__eval == true) {
+        result = eval(result)
+      }
     } catch (e) {
-      err = e
+      err = JSON.stringify(e, Object.getOwnPropertyNames(e))
     }
 
   self.postMessage(JSON.stringify({err: err, js: result}))

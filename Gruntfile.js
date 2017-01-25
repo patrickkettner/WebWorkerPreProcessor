@@ -293,7 +293,13 @@ module.exports = function(grunt) {
       ],
       slim: [],
       haml: [],
-      livescript: [],
+      livescript: [
+        './test/*.ls',
+        '!./test/cli.ls',
+        '!./test/lib.ls',
+        '!./test/heredoc.ls',
+        '!./test/optparse.ls'
+      ],
       stylus: [ './test/cases/**/*.styl', './test/converter/**/*.styl' ],
     }
   });
